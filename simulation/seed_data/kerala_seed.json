@@ -1,0 +1,170 @@
+{
+  "scenario_name": "Kerala Monsoon Disaster - Shared Baseline Simulation",
+  "version": "1.0",
+  "description": "Synthetic emergency scenario coordinating 3 affected zones, 2 hospitals, 3 ambulances, 4 rescue teams, and 3 medical/blood suppliers.",
+  "incidents": [
+    {
+      "id": "inc_village_a_trapped_001",
+      "code": "RESQ-SIM-001",
+      "name": "Village A - Chalakudy Basin Flooding",
+      "district": "Thrissur",
+      "location": { "type": "Point", "coordinates": [76.3312, 10.3120] },
+      "hazard_type": "FLOOD",
+      "people_affected": 12,
+      "trapped_count": 12,
+      "injured_count": 0,
+      "description": "12 villagers trapped on roof of community hall by rapidly rising floodwaters. Road access completely severed.",
+      "connectivity": "ONLINE"
+    },
+    {
+      "id": "inc_village_b_injured_002",
+      "code": "RESQ-SIM-002",
+      "name": "Village B - Meppadi Landslide & Trauma",
+      "district": "Wayanad",
+      "location": { "type": "Point", "coordinates": [76.1320, 11.5540] },
+      "hazard_type": "LANDSLIDE",
+      "people_affected": 4,
+      "trapped_count": 0,
+      "injured_count": 1,
+      "description": "1 elderly resident with compound fracture and suspected shock; 3 family members requiring evacuation.",
+      "connectivity": "ONLINE"
+    },
+    {
+      "id": "inc_village_c_camps_003",
+      "code": "RESQ-SIM-003",
+      "name": "Village C - Kuttanad Relief Camps Isolation",
+      "district": "Alappuzha",
+      "location": { "type": "Point", "coordinates": [76.4320, 9.5840] },
+      "hazard_type": "FLOOD",
+      "people_affected": 180,
+      "trapped_count": 0,
+      "injured_count": 0,
+      "description": "2 relief camps marooned. Running out of drinking water, ORS packets, and basic antibiotics. Cellular connectivity offline.",
+      "connectivity": "OFFLINE_ZERO_SIGNAL"
+    }
+  ],
+  "hospitals": [
+    {
+      "id": "org_hospital_a",
+      "name": "Hospital A - General Medical Center",
+      "district": "Ernakulam",
+      "location": { "type": "Point", "coordinates": [76.3860, 10.1960] },
+      "capacity": {
+        "total_emergency_beds": 20,
+        "occupied_emergency_beds": 16,
+        "reserved_emergency_beds": 0,
+        "out_of_service_emergency_beds": 0,
+        "available_emergency_beds": 4,
+        "total_icu_beds": 10,
+        "occupied_icu_beds": 10,
+        "reserved_icu_beds": 0,
+        "out_of_service_icu_beds": 0,
+        "available_icu_beds": 0
+      }
+    },
+    {
+      "id": "org_hospital_b",
+      "name": "Hospital B - Specialty Cardiac & Trauma Institute",
+      "district": "Ernakulam",
+      "location": { "type": "Point", "coordinates": [76.2999, 9.9816] },
+      "capacity": {
+        "total_emergency_beds": 15,
+        "occupied_emergency_beds": 14,
+        "reserved_emergency_beds": 0,
+        "out_of_service_emergency_beds": 0,
+        "available_emergency_beds": 1,
+        "total_icu_beds": 8,
+        "occupied_icu_beds": 6,
+        "reserved_icu_beds": 0,
+        "out_of_service_icu_beds": 0,
+        "available_icu_beds": 2
+      }
+    }
+  ],
+  "ambulances": [
+    {
+      "id": "amb_01",
+      "vehicle_plate": "KL-08-AU-1001",
+      "type": "ALS",
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.2144, 10.5276] }
+    },
+    {
+      "id": "amb_02",
+      "vehicle_plate": "KL-08-AU-1002",
+      "type": "BLS",
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.2160, 10.5290] }
+    },
+    {
+      "id": "amb_03",
+      "vehicle_plate": "KL-07-BX-2003",
+      "type": "BLS",
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.3500, 10.1000] }
+    }
+  ],
+  "rescue_teams": [
+    {
+      "id": "team_rescue_01",
+      "name": "NDRF Boat Unit 1",
+      "capabilities": ["MOTORIZED_BOAT", "DIVERS", "FLOOD_EXTRACTION"],
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.3516, 10.1076] }
+    },
+    {
+      "id": "team_rescue_02",
+      "name": "Fire & Rescue Boat Unit 2",
+      "capabilities": ["MOTORIZED_BOAT", "FLOOD_EXTRACTION"],
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.3550, 10.1120] }
+    },
+    {
+      "id": "team_rescue_03",
+      "name": "Civil Defense Quick Response 3",
+      "capabilities": ["ROPE_RESCUE", "PARAMEDIC", "LANDSLIDE_4X4"],
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.1300, 11.5500] }
+    },
+    {
+      "id": "team_rescue_04",
+      "name": "Volunteer Marine Fishermen Unit 4",
+      "capabilities": ["TRADITIONAL_BOAT", "SHALLOW_WATER_EXTRACTION"],
+      "status": "AVAILABLE",
+      "location": { "type": "Point", "coordinates": [76.4300, 9.5800] }
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "org_supplier_a",
+      "name": "Medical Supplier Depot Alpha",
+      "type": "SUPPLIER",
+      "location": { "type": "Point", "coordinates": [76.3260, 10.0520] },
+      "inventory": [
+        { "item_code": "TRAUMA_KIT", "quantity": 50 },
+        { "item_code": "ORS_SACHETS", "quantity": 1000 },
+        { "item_code": "PURIFICATION_TABLETS", "quantity": 5000 }
+      ]
+    },
+    {
+      "id": "org_supplier_b",
+      "name": "Regional Disaster Logistics Beta",
+      "type": "SUPPLIER",
+      "location": { "type": "Point", "coordinates": [76.3100, 10.0400] },
+      "inventory": [
+        { "item_code": "DRY_RATION_KIT", "quantity": 300 },
+        { "item_code": "BLANKETS", "quantity": 400 }
+      ]
+    },
+    {
+      "id": "org_blood_bank_c",
+      "name": "Central Red Cross Blood Bank",
+      "type": "BLOOD_BANK",
+      "location": { "type": "Point", "coordinates": [76.2840, 9.9720] },
+      "inventory": [
+        { "item_code": "BLOOD_O_NEG", "quantity": 12 },
+        { "item_code": "BLOOD_B_POS", "quantity": 35 }
+      ]
+    }
+  ]
+}
