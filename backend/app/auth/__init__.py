@@ -1,1 +1,25 @@
-"""Authentication, JWT handling, and RBAC permission dependencies."""
+"""
+Authentication and authorization utilities.
+"""
+from .security import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    decode_access_token,
+)
+from .dependencies import (
+    get_current_user,
+    require_role,
+    require_org_type,
+)
+
+__all__ = [
+    "verify_password",
+    "get_password_hash",
+    "create_access_token",
+    "decode_access_token",
+    "get_current_user",
+    "require_role",
+    "require_org_type",
+]
+
