@@ -31,7 +31,7 @@ class IncidentReport(BaseModel):
         comment="Reporter name (anonymous allowed)"
     )
 
-    reporter_phone: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, comment="Reporter phone")
+    reporter_phone: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, comment="Reporter phone (encrypted)")
 
     raw_text: Mapped[str] = mapped_column(Text, nullable=False, comment="Raw report text from citizen")
 

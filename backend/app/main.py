@@ -101,16 +101,37 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     timestamp: str
+    database: str = "connected"
+
+
+@app.get("/", tags=["Root"])
+async def root():
+    return {
+        "message": "Welcome to the RESQ Emergency Coordination Platform API",
+        "docs": "/docs",
+        "health": "/health"
+    }
 
 
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
-async def health_check():
-    """Health check endpoint with timestamp."""
+async def health_check(db: AsyncSession = Depends(get_db)):
+    """Health check endpoint with active database connectivity check."""
+    database_status = "unhealthy"
+    try:
+        result = await db.execute(text("SELECT 1"))
+        if result.scalar() == 1:
+            database_status = "connected"
+    except Exception as e:
+        database_status = f"error: {str(e)}"
+
+    overall_status = "healthy" if database_status == "connected" else "degraded"
+
     return HealthResponse(
-        status="healthy",
+        status=overall_status,
         service="resq-backend",
         version="0.1.0",
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        database=database_status
     )
 
 
