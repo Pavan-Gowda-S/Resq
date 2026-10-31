@@ -22,7 +22,69 @@ When an emergency occurs (such as an injured person trapped in a flooded buildin
 
 ---
 
-## 2. Team Roles & Active Development
+## 2. System Architecture Diagram
+
+> Full detailed architectural specifications, lifecycle state machines, and data flow sequences are available in [`docs/system-architecture/system-architecture-diagram.md`](docs/system-architecture/system-architecture-diagram.md).
+
+```mermaid
+flowchart TB
+    classDef clientTier fill:#E8F0FE,stroke:#4285F4,stroke-width:2px,color:#1A73E8;
+    classDef agentTier fill:#FEF7E0,stroke:#F9AB00,stroke-width:2px,color:#B06000;
+    classDef backendTier fill:#E6F4EA,stroke:#34A853,stroke-width:2px,color:#137333;
+    classDef dbTier fill:#FCE8E6,stroke:#EA4335,stroke-width:2px,color:#C5221F;
+
+    subgraph Tier1["1. ACTOR & PRESENTATION TIER"]
+        Citizen["📱 Citizen SOS (Web / PWA)"]:::clientTier
+        Responder["🚤 Rescue & Ambulance Teams"]:::clientTier
+        Hospital["🏥 Hospital Triage Console"]:::clientTier
+        ControlRoom["🖥️ Emergency Control Room"]:::clientTier
+    end
+
+    subgraph Tier2["2. MULTI-AGENT ORCHESTRATION TIER (LangGraph + Gemini)"]
+        Orchestrator["👑 Orchestrator Agent (StateGraph Supervisor)"]:::agentTier
+        Intelligence["🧠 Incident Intelligence Agent"]:::agentTier
+        RiskDecision["⚖️ Risk & Decision Agent (SALT Triage)"]:::agentTier
+        RescueMatch["🚤 Rescue Matching Agent"]:::agentTier
+        HospitalMatch["🏥 Hospital & Ambulance Matching"]:::agentTier
+        RouteMobility["🗺️ Route & Mobility Agent"]:::agentTier
+        Marketplace["💊 Resource Marketplace Agent"]:::agentTier
+        Continuity["📡 Continuity & Offline Agent"]:::agentTier
+        AuditAgent["🛡️ Verification & Audit Agent"]:::agentTier
+    end
+
+    subgraph Tier3["3. CORE BACKEND SERVICES TIER (FastAPI 0.110+)"]
+        Gateway["🌐 REST & WebSocket API Gateway"]:::backendTier
+        IncidentSvc["📋 Incident & Multi-Task Management"]:::backendTier
+        CapacityEng["🧮 Deterministic Capacity Engine"]:::backendTier
+        ReservationSvc["🔒 30-Min Atomic Reservation Engine"]:::backendTier
+        SyncSvc["🔄 Offline Event Reconciliation"]:::backendTier
+        AuditLedger["📜 Immutable Audit & Event Ledger"]:::backendTier
+    end
+
+    subgraph Tier4["4. PERSISTENCE & CACHING TIER"]
+        Postgres[("🐘 PostgreSQL 16 + PostGIS")]:::dbTier
+        Redis[("⚡ Redis 7 PubSub & Cache")]:::dbTier
+    end
+
+    Citizen -->|"HTTPS SOS / Tracking Token"| Gateway
+    Responder <-->|"WSS Telemetry / Offline Sync"| Gateway
+    Hospital <-->|"Verified Capacity / Admissions"| Gateway
+    ControlRoom <-->|"Manual Overrides & Human Gate"| Gateway
+
+    Gateway <-->|"Typed Async Client"| Orchestrator
+    Orchestrator --> Intelligence --> RiskDecision
+    RiskDecision --> RescueMatch & HospitalMatch & Marketplace
+    RescueMatch & HospitalMatch & Marketplace --> RouteMobility --> AuditAgent
+    Continuity -.->|"Sync Replay"| Orchestrator
+
+    Gateway --> IncidentSvc & CapacityEng & ReservationSvc & SyncSvc & AuditLedger
+    IncidentSvc & CapacityEng & ReservationSvc & SyncSvc & AuditLedger --> Postgres
+    Gateway <--> Redis
+```
+
+---
+
+## 3. Team Roles & Active Development
 
 Development is split into two active disciplines:
 

@@ -6,6 +6,9 @@
 
 A core operational principle of RESQ is that **a single incident frequently requires multiple linked response tasks** (e.g., rescue extraction + ambulance transport + hospital bed reservation + medical supply coordination).
 
+> [!NOTE]
+> For the comprehensive full-resolution multi-tier architecture diagrams, state machine flows, and disaster simulation sequences, see [`docs/system-architecture/system-architecture-diagram.md`](system-architecture-diagram.md).
+
 ---
 
 ## 2. Overall High-Level Architecture
