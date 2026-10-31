@@ -33,6 +33,34 @@ services:
       timeout: 5s
       retries: 5
 
+  # FastAPI Backend Service (optional local containerization)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resq-backend
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://resq_user:resq_password@db:5432/resq_db
+      - DATABASE_SYNC_URL=postgresql://resq_user:resq_password@db:5432/resq_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=change-this-to-a-secure-random-secret-key-in-production
+      - AGENT_SYSTEM_API_KEY=resq_agent_internal_secret_token
+      - ENVIRONMENT=development
+      - DEBUG=True
+    command: >
+      sh -c "alembic -c backend/alembic.ini upgrade head &&
+             python simulation/seed_data/seed_phase2.py &&
+             python simulation/seed_data/seed_phase4.py &&
+             uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+
 volumes:
   postgres_data:
     driver: local

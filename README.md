@@ -197,12 +197,25 @@ python simulation/kerala_flood/scenario.py
 
 ---
 
-## 5. Developer Onboarding Instructions
+---
 
-When opening this workspace in an AI coding agent or handing over to a developer, send one of the following prompt messages:
+## 5. Developer Onboarding & Team Handoff
 
-### For Developer 1:
-> *"I am [NAME]. My assigned role is Backend & Database. Read the RESQ project documentation, inspect the repository, identify my current phase and continue development from the earliest incomplete task."*
+> Full handoff documentation: [docs/team/HANDOFF.md](docs/team/HANDOFF.md) for endpoints, credentials, payloads, and laptop-to-laptop connectivity.
 
-### For Developer 2:
-> *"I am [NAME]. My assigned role is Integration & AI Agents. Read the RESQ project documentation, inspect the repository, identify my current phase and continue development from the earliest incomplete task."*
+### Roles & Responsibilities:
+- **Friend A (Offline Field Sync)**: Build the offline queue and sync engine consuming `POST /api/v1/sync/events`. See [Offline Sync Spec](docs/team/HANDOFF.md#4-instructions-for-friend-a-offline-field-sync).
+- **Friend B (Frontend Portals)**: Build the Citizen SOS, Dispatcher Dashboard, and Healthcare portals using REST and WebSockets. See [Frontend Spec](docs/team/HANDOFF.md#5-instructions-for-friend-b-frontend-development).
+- **Backend & Cloud Deployment**: See [Deployment & Tunneling Options](docs/team/HANDOFF.md#2-exposing-the-backend-to-external-laptops).
+
+### Automated Test Suite:
+Run the complete backend test suite (101 unit & integration tests):
+```bash
+pytest backend/tests/ -v
+```
+
+### End-to-End Agent & Backend Verification:
+Verify the live connection between AI agents and the backend:
+```bash
+python scripts/verify_agent_backend_connection.py
+```
