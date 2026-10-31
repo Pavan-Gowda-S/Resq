@@ -17,7 +17,7 @@ Here is your setup to build the offline queue and synchronization client:
    git checkout -b feature/offline-sync-engine
 
 2. Live Backend Base URL:
-   https://learned-although-fog-juan.trycloudflare.com/api/v1
+   https://tied-politics-supervision-blink.trycloudflare.com/api/v1
 
 3. Your Test Responder Account:
    Email: responder01@ndrf.resq.gov.in
@@ -43,7 +43,7 @@ Your designated domain is: OFFLINE CONTINUITY, EDGE QUEUING, AND SYNC ENGINE.
 ### Project Context & Architecture:
 - Repository: RESQ (Disaster Response Platform for floods and natural disasters).
 - Backend: FastAPI, PostGIS, Redis. All 7 phases are completed and verified (101 automated tests passing).
-- Live Backend API: https://learned-although-fog-juan.trycloudflare.com/api/v1 (or local via docker compose up -d).
+- Live Backend API: https://tied-politics-supervision-blink.trycloudflare.com/api/v1 (or local via docker compose up -d).
 - Documentation: Inspect `docs/team/HANDOFF.md` and `docs/api/api-contracts.md` (Section 6) for authoritative contracts.
 
 ### Your Objectives & Responsibilities:
@@ -98,14 +98,14 @@ Hey! The RESQ backend and AI agents are live and ready for frontend implementati
    git checkout -b feature/frontend-portals
 
 2. Interactive Swagger Docs (Test in Browser):
-   https://learned-although-fog-juan.trycloudflare.com/docs
+   https://tied-politics-supervision-blink.trycloudflare.com/docs
 
 3. Live Backend Base URL:
-   https://learned-although-fog-juan.trycloudflare.com/api/v1
+   https://tied-politics-supervision-blink.trycloudflare.com/api/v1
 
 4. Real-time WebSocket Endpoints:
-   - Live incidents feed: wss://learned-although-fog-juan.trycloudflare.com/ws/incidents?token=<jwt>
-   - Live task feed: wss://learned-although-fog-juan.trycloudflare.com/ws/tasks/{task_id}?token=<jwt>
+   - Live incidents feed: wss://tied-politics-supervision-blink.trycloudflare.com/ws/incidents?token=<jwt>
+   - Live task feed: wss://tied-politics-supervision-blink.trycloudflare.com/ws/tasks/{task_id}?token=<jwt>
 
 5. Test Logins:
    - Dispatcher (Command & Control): dispatcher@ernakulam.resq.gov.in / Dispatch@123
@@ -133,8 +133,8 @@ Your designated domain is: FRONTEND WEB & PWA PORTALS.
 ### Project Context & Architecture:
 - Repository: RESQ (Disaster Response Platform for flood and multi-hazard emergencies).
 - Backend: FastAPI, PostGIS, Redis Pub/Sub, WebSockets. Live and fully verified.
-- Live Backend API: https://learned-although-fog-juan.trycloudflare.com/api/v1
-- Interactive OpenAPI Docs: https://learned-although-fog-juan.trycloudflare.com/docs
+- Live Backend API: https://tied-politics-supervision-blink.trycloudflare.com/api/v1
+- Interactive OpenAPI Docs: https://tied-politics-supervision-blink.trycloudflare.com/docs
 - Documentation: Inspect `docs/team/HANDOFF.md` for complete API schemas, test logins, and WebSocket specs.
 
 ### Portals to Implement (under `frontend/`):
