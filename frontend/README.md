@@ -1,12 +1,21 @@
-# RESQ Frontend Portals (Deferred Development Area)
+# RESQ Web (all 5 portals)
 
-> [!WARNING]
-> **DEVELOPMENT DEFERRED:** As established in Section 1 and Section 13 of the RESQ Master Architecture, user-facing frontend development is intentionally postponed until Backend Phase 6 and Agent Phase 6 gates pass.
-> Neither Developer 1 nor Developer 2 should implement UI components or client dashboards at this time.
+React + TanStack Start + Tailwind v4 + shadcn UI.
 
-## Planned Future Client Portals
-- `citizen/`: Mobile-first PWA for anonymous SOS submission and tokenized tracking.
-- `rescue/`: Offline-capable PWA for field rescue teams with GPS telemetry.
-- `healthcare/`: Hospital admin and triage doctor dashboard for bed management.
-- `control-room/`: Emergency operations center situational map and override console.
-- `admin/`: System-wide organization onboarding and credential verification portal.
+```
+bun install
+bun run dev   # http://localhost:8080
+```
+
+Backend calls go through `src/routes/api/public/resq/$.ts` (proxy to the FastAPI tunnel; change `BASE` there).
+Portals work offline using simulated data from `src/lib/resq-data.ts`.
+
+## Who owns what
+| Portal | Route file |
+|---|---|
+| Citizen SOS + tracking | `src/routes/citizen.tsx`, `src/routes/track.$token.tsx` |
+| Hospital | `src/routes/hospital.tsx` |
+| Rescue team | `src/routes/rescue.tsx` |
+| Control room | `src/routes/control.tsx`, `src/components/resq/kerala-map.tsx` |
+| Admin | `src/routes/admin.tsx` |
+| Shared (nav, login gate, theme) | `src/components/resq/*`, `src/lib/*`, `src/styles.css` |
