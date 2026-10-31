@@ -234,6 +234,7 @@ async def check_incident_duplicates(
     lat: float = Query(..., description="Latitude"),
     lng: float = Query(..., description="Longitude"),
     radius_m: int = Query(200, ge=1, le=5000, description="Search radius in meters"),
+    limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -255,7 +256,7 @@ async def check_incident_duplicates(
             Incident.status.notin_(["RESOLVED", "CLOSED", "FALSE_ALARM"])
         )
         .order_by("distance_m")
-        .limit(5)
+        .limit(limit)
     )
 
     result = await db.execute(query)

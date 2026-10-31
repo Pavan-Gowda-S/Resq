@@ -41,7 +41,7 @@ async def process_incident_lifecycle(
     try:
         # Report incident to backend to obtain canonical incident_id
         incident_response = await client.report_incident(raw_report)
-        incident_id = incident_response.get("incident_id", "unknown")
+        incident_id = getattr(incident_response, "incident_id", None) or (incident_response.get("incident_id") if isinstance(incident_response, dict) else "unknown")
 
         # Initialize AgentState
         initial_state: AgentState = {

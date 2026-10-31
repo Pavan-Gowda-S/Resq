@@ -26,16 +26,16 @@ async def lifespan(app: FastAPI):
     # Startup: Enable PostGIS extension
     try:
         await enable_postgis_extension()
-        print("✓ PostGIS extension enabled successfully")
+        print("[+] PostGIS extension enabled successfully")
     except Exception as e:
-        print(f"✗ Failed to enable PostGIS extension: {e}")
+        print(f"[-] Failed to enable PostGIS extension: {e}")
 
     # Startup: Connect to Redis (skip in testing)
     if os.getenv("TESTING") != "1":
         try:
             await connect_redis()
         except Exception as e:
-            print(f"✗ Failed to connect to Redis: {e}")
+            print(f"[-] Failed to connect to Redis: {e}")
 
     yield
 
@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
         try:
             await disconnect_redis()
         except Exception as e:
-            print(f"✗ Error during Redis disconnect: {e}")
+            print(f"[-] Error during Redis disconnect: {e}")
 
     print("Shutting down RESQ backend...")
 

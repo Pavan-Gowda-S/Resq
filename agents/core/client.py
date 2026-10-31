@@ -103,10 +103,11 @@ class ResqApiClient:
         if self.use_mock:
             return await self._mock_service.report_incident(data)
 
+        json_data = data if isinstance(data, dict) else data.model_dump()
         response_data = await self._make_request(
             "POST",
             "/incidents/report",
-            json=data.model_dump()
+            json=json_data
         )
         return IncidentReportResponse(**response_data)
 

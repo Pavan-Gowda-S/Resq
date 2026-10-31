@@ -138,35 +138,35 @@ async def seed_phase4_data():
             else:
                 ambulance_fleet = [
                     {
-                        "vehicle_number": "KL-07-AM-1234",
+                        "vehicle_plate": "KL-07-AM-1234",
                         "ambulance_type": "ALS",
                         "status": "AVAILABLE",
                         "location": "POINT(76.2711 10.8505)",  # Ernakulam
                         "crew_size": 3,
                     },
                     {
-                        "vehicle_number": "KL-07-AM-5678",
+                        "vehicle_plate": "KL-07-AM-5678",
                         "ambulance_type": "BLS",
                         "status": "AVAILABLE",
                         "location": "POINT(76.2144 10.5276)",  # Kochi
                         "crew_size": 2,
                     },
                     {
-                        "vehicle_number": "KL-10-AM-9012",
+                        "vehicle_plate": "KL-10-AM-9012",
                         "ambulance_type": "ALS",
                         "status": "AVAILABLE",
                         "location": "POINT(76.2055 11.2588)",  # Kozhikode
                         "crew_size": 3,
                     },
                     {
-                        "vehicle_number": "KL-03-AM-3456",
+                        "vehicle_plate": "KL-03-AM-3456",
                         "ambulance_type": "BLS",
                         "status": "AVAILABLE",
                         "location": "POINT(76.9366 8.5241)",  # Thiruvananthapuram
                         "crew_size": 2,
                     },
                     {
-                        "vehicle_number": "KL-08-AM-7890",
+                        "vehicle_plate": "KL-08-AM-7890",
                         "ambulance_type": "NEONATAL",
                         "status": "AVAILABLE",
                         "location": "POINT(76.4924 9.3850)",  # Pathanamthitta
@@ -179,26 +179,26 @@ async def seed_phase4_data():
                     # Check if ambulance already exists
                     result = await db.execute(
                         select(AmbulanceStatus).where(
-                            AmbulanceStatus.vehicle_number == ambulance_spec["vehicle_number"]
+                            AmbulanceStatus.vehicle_plate == ambulance_spec["vehicle_plate"]
                         )
                     )
                     existing = result.scalar_one_or_none()
 
                     if existing:
-                        print(f"[SKIP] Ambulance {ambulance_spec['vehicle_number']} already exists")
+                        print(f"[SKIP] Ambulance {ambulance_spec['vehicle_plate']} already exists")
                         continue
 
                     ambulance = AmbulanceStatus(
                         organization_id=ambulance_orgs[0].id,  # Assign to first ambulance provider
-                        vehicle_number=ambulance_spec["vehicle_number"],
-                        ambulance_type=ambulance_spec["ambulance_type"],
+                        vehicle_plate=ambulance_spec["vehicle_plate"],
+                        type=ambulance_spec["ambulance_type"],
                         status=ambulance_spec["status"],
                         current_location=WKTElement(ambulance_spec["location"], srid=4326),
-                        crew_size=ambulance_spec["crew_size"],
+                        
                     )
                     db.add(ambulance)
                     ambulance_count += 1
-                    print(f"[OK] Created ambulance {ambulance_spec['vehicle_number']} ({ambulance_spec['ambulance_type']})")
+                    print(f"[OK] Created ambulance {ambulance_spec['vehicle_plate']} ({ambulance_spec['ambulance_type']})")
 
                 await db.commit()
                 print(f"[OK] Seeded {ambulance_count} ambulances")

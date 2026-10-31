@@ -24,9 +24,9 @@ async def connect_redis() -> None:
         )
         # Test connection
         await redis_client.ping()
-        print(f"✓ Redis connected successfully: {redis_url}")
+        print(f"[+] Redis connected successfully: {redis_url}")
     except Exception as e:
-        print(f"✗ Failed to connect to Redis: {e}")
+        print(f"[-] Failed to connect to Redis: {e}")
         redis_client = None
 
 
@@ -37,9 +37,9 @@ async def disconnect_redis() -> None:
     if redis_client:
         try:
             await redis_client.close()
-            print("✓ Redis disconnected")
+            print("[+] Redis disconnected")
         except Exception as e:
-            print(f"✗ Error disconnecting Redis: {e}")
+            print(f"[-] Error disconnecting Redis: {e}")
         finally:
             redis_client = None
 
@@ -66,7 +66,7 @@ async def publish_incident_update(incident_id: str, payload: dict) -> None:
         message = json.dumps(payload)
         await redis_client.publish(channel, message)
     except Exception as e:
-        print(f"✗ Failed to publish incident update: {e}")
+        print(f"[-] Failed to publish incident update: {e}")
 
 
 async def publish_task_update(task_id: str, payload: dict) -> None:
@@ -86,4 +86,4 @@ async def publish_task_update(task_id: str, payload: dict) -> None:
         message = json.dumps(payload)
         await redis_client.publish(channel, message)
     except Exception as e:
-        print(f"✗ Failed to publish task update: {e}")
+        print(f"[-] Failed to publish task update: {e}")
