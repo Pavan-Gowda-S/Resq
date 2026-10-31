@@ -2,6 +2,14 @@
 Kerala Flood Master Simulation Runner.
 Executes complete 13-stage end-to-end disaster scenario across all 3 villages.
 """
+import sys
+from pathlib import Path
+
+# Ensure project root is in sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from typing import Dict, Any
 from agents.core.client import ResqApiClient
 from agents.orchestrator.workflow import process_incident_lifecycle_without_backend
@@ -176,3 +184,33 @@ async def run_kerala_flood_simulation(
 
     finally:
         await client.close()
+
+
+if __name__ == "__main__":
+    import asyncio
+    import json
+
+    print("=" * 70)
+    print("RESQ MULTI-AGENT EMERGENCY PLATFORM — KERALA FLOOD DISASTER SIMULATION")
+    print("=" * 70)
+    print("Running end-to-end multi-agent lifecycle across Villages A, B, and C...")
+
+    sim_results = asyncio.run(run_kerala_flood_simulation())
+
+    print("\n" + "=" * 70)
+    print(f"SIMULATION STATUS: {sim_results['overall_status']['simulation_status']}")
+    print(f"Villages Processed: {sim_results['overall_status']['verified_villages']}/{sim_results['overall_status']['total_villages']}")
+    print("=" * 70)
+
+    for v_key, v_data in sim_results["villages"].items():
+        print(f"\n[{v_key.upper()}] - Incident ID: {v_data['incident_id']}")
+        ext = v_data.get('extraction', {})
+        print(f"  • Extraction: Hazard={ext.get('hazard_type')} | Trapped={ext.get('trapped_count', 0)} | Injured={ext.get('injured_count', 0)} | Affected={ext.get('people_affected', 0)}")
+        print(f"  • Triage Priority: {v_data['triage']['priority']} (Score: {v_data['triage']['priority_score']})")
+        print(f"  • Verification Status: {v_data['verification_status']}")
+
+    print("\n" + "=" * 70)
+    print("FULL JSON SUMMARY:")
+    print(json.dumps(sim_results, indent=2))
+    print("=" * 70)
+
