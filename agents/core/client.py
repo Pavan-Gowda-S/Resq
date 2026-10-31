@@ -277,11 +277,35 @@ class ResqApiClient:
         if min_quantity > 1:
             params["min_quantity"] = min_quantity
 
-        return await self._make_request(
+        response = await self._make_request(
             "GET",
             "/resources/inventory/search",
             params=params
         )
+
+        if isinstance(response, list):
+            org_map = {}
+            for item in response:
+                org_id = item.get("organization_id")
+                if org_id not in org_map:
+                    org_map[org_id] = {
+                        "id": org_id,
+                        "organization_id": org_id,
+                        "name": item.get("item_name", "Medical Supplier"),
+                        "type": item.get("category", "SUPPLIER"),
+                        "location": {"type": "Point", "coordinates": [76.2711, 10.8505]},
+                        "inventory": []
+                    }
+                avail = item.get("available_quantity")
+                if avail is None:
+                    avail = item.get("total_quantity", 0) - item.get("reserved_quantity", 0)
+                org_map[org_id]["inventory"].append({
+                    "item_code": item.get("item_code"),
+                    "available_quantity": avail
+                })
+            return {"suppliers": list(org_map.values()), "result_count": len(org_map)}
+
+        return response
 
     # ========================================================================
     # Offline Synchronization APIs

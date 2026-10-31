@@ -39,6 +39,8 @@ from backend.app.services.status_service import (
     update_incident_status,
 )
 from geoalchemy2.elements import WKTElement
+from geoalchemy2.types import Geography
+from sqlalchemy import func
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
 
@@ -225,6 +227,49 @@ async def track_incident(
         reported_at=incident.created_at,
         tasks=task_summaries,
     )
+
+
+@router.get("/duplicates", response_model=List[dict])
+async def check_incident_duplicates(
+    lat: float = Query(..., description="Latitude"),
+    lng: float = Query(..., description="Longitude"),
+    radius_m: int = Query(200, ge=1, le=5000, description="Search radius in meters"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Check for nearby duplicate incidents within radius.
+    """
+    search_point = func.ST_SetSRID(func.ST_MakePoint(lng, lat), 4326).cast(Geography)
+    distance_expr = func.ST_Distance(Incident.location, search_point)
+
+    query = (
+        select(
+            Incident.id,
+            Incident.incident_number,
+            distance_expr.label("distance_m"),
+            Incident.status,
+            Incident.created_at
+        )
+        .where(
+            func.ST_DWithin(Incident.location, search_point, radius_m),
+            Incident.status.notin_(["RESOLVED", "CLOSED", "FALSE_ALARM"])
+        )
+        .order_by("distance_m")
+        .limit(5)
+    )
+
+    result = await db.execute(query)
+    rows = result.all()
+
+    return [
+        {
+            "incident_id": str(row.id),
+            "distance_m": float(row.distance_m),
+            "incident_number": row.incident_number,
+            "status": row.status
+        }
+        for row in rows
+    ]
 
 
 @router.get("", response_model=List[IncidentResponse])
@@ -424,6 +469,7 @@ async def update_incident_status_endpoint(
 
 
 @router.post("/{incident_id}/tasks", response_model=MultiTaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{incident_id}/tasks/propose", response_model=MultiTaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_incident_tasks(
     incident_id: UUID,
     task_proposal: MultiTaskProposal,

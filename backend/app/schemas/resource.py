@@ -4,7 +4,7 @@ Pydantic schemas for resource and capacity management.
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from backend.app.schemas.organization import GeoJSONPoint
 
@@ -157,6 +157,11 @@ class ReservationResponse(BaseModel):
     expires_at: datetime
     created_at: datetime
     updated_at: datetime
+
+    @computed_field
+    @property
+    def reservation_id(self) -> UUID:
+        return self.id
 
     model_config = {"from_attributes": True}
 

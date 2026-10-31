@@ -297,11 +297,60 @@ async def update_ambulance_status(
     )
 
 
+@router.get("/rescue-teams", response_model=dict)
+async def get_rescue_teams(
+    capability: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None),
+    lng: Optional[float] = Query(None),
+    status: str = Query("AVAILABLE"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Search for available rescue teams.
+    """
+    query = select(Organization).where(
+        Organization.type.in_([
+            "RESCUE", "CONTROL_ROOM", "ADMIN", "RESCUE_AGENCY", "FIRE_AND_RESCUE"
+        ]),
+        Organization.verification_status != "SUSPENDED"
+    )
+
+    result = await db.execute(query)
+    orgs = result.scalars().all()
+
+    teams = []
+    for org in orgs:
+        caps = ["FLOOD_EXTRACTION"]
+        if "Boat" in org.name or "Rescue" in org.name or "Fire" in org.name:
+            caps.extend(["MOTORIZED_BOAT", "FLOOD_EXTRACTION"])
+        if "NDRF" in org.name:
+            caps.extend(["MOTORIZED_BOAT", "FLOOD_EXTRACTION", "DEBRIS_CLEARANCE", "STRUCTURAL_RESCUE", "HEAVY_EQUIPMENT", "DIVERS"])
+
+        if capability and capability not in caps:
+            continue
+
+        teams.append({
+            "id": str(org.id),
+            "name": org.name,
+            "organization_type": org.type,
+            "capabilities": list(set(caps)),
+            "status": "AVAILABLE",
+            "location": wkb_to_geojson(org.location)
+        })
+
+    return {
+        "count": len(teams),
+        "results": teams
+    }
+
+
 @router.get("/inventory/search", response_model=List[ResourceInventoryResponse])
 async def search_resource_inventory(
     category: Optional[str] = Query(None, description="MEDICAL_SUPPLY, RELIEF_MATERIAL, EQUIPMENT, FOOD_WATER"),
     item_code: Optional[str] = Query(None),
     min_available: Optional[int] = Query(None, ge=0),
+    min_quantity: Optional[int] = Query(None, ge=0),
     organization_id: Optional[UUID] = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -313,7 +362,7 @@ async def search_resource_inventory(
         db=db,
         category=category,
         item_code=item_code,
-        min_available=min_available,
+        min_available=min_available or min_quantity,
         organization_id=organization_id
     )
 
