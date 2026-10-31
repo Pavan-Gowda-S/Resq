@@ -1,5 +1,5 @@
 services:
-  # PostgreSQL 16 with PostGIS extension
+  # PostgreSQL 16 with PostGIS extension (isolated on private internal network)
   db:
     image: postgis/postgis:16-3.4
     container_name: resq-db
@@ -8,32 +8,43 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-resq_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-resq_password}
       POSTGRES_DB: ${POSTGRES_DB:-resq_db}
+    # Security: In production, do NOT expose ports to host.
+    # Exposing only when EXPOSE_DB_PORT=true or for local dev debugging
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - resq_internal_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-resq_user} -d ${POSTGRES_DB:-resq_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
 
   # Redis for real-time messaging, caching, and rate-limiting
   redis:
     image: redis:7-alpine
     container_name: resq-redis
     restart: always
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:-resq_redis_secret}"
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-127.0.0.1:6379}:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - resq_internal_network
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-resq_redis_secret}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    security_opt:
+      - no-new-privileges:true
 
-  # FastAPI Backend Service (optional local containerization)
+  # FastAPI Backend Service (Containerized with non-root security)
   backend:
     build:
       context: .
@@ -47,19 +58,30 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    networks:
+      - resq_internal_network
     environment:
       - DATABASE_URL=postgresql+asyncpg://resq_user:resq_password@db:5432/resq_db
       - DATABASE_SYNC_URL=postgresql://resq_user:resq_password@db:5432/resq_db
-      - REDIS_URL=redis://redis:6379/0
-      - SECRET_KEY=change-this-to-a-secure-random-secret-key-in-production
-      - AGENT_SYSTEM_API_KEY=resq_agent_internal_secret_token
+      - REDIS_URL=redis://:resq_redis_secret@redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:-change-this-to-a-secure-random-secret-key-in-production}
+      - RESQ_MASTER_ENCRYPTION_KEY=${RESQ_MASTER_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      - AGENT_SYSTEM_API_KEY=${AGENT_SYSTEM_API_KEY:-resq_agent_internal_secret_token}
       - ENVIRONMENT=development
-      - DEBUG=True
+      - DEBUG=False
+    security_opt:
+      - no-new-privileges:true
     command: >
       sh -c "alembic -c backend/alembic.ini upgrade head &&
              python simulation/seed_data/seed_phase2.py &&
              python simulation/seed_data/seed_phase4.py &&
+             python simulation/seed_data/seed_users.py &&
              uvicorn backend.app.main:app --host 0.0.0.0 --port 8000"
+
+networks:
+  resq_internal_network:
+    driver: bridge
+    internal: false
 
 volumes:
   postgres_data:

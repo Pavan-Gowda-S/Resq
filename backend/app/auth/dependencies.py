@@ -1,5 +1,5 @@
 """
-FastAPI dependencies for authentication and authorization.
+FastAPI dependencies for authentication, role enforcement, and multi-tenant isolation.
 """
 import os
 from typing import List, Optional
@@ -22,17 +22,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """
-    Dependency to get the current authenticated user from JWT token.
-
-    Args:
-        credentials: HTTP Bearer token credentials
-        db: Database session
-
-    Returns:
-        Current authenticated User object
-
-    Raises:
-        HTTPException: 401 if token is invalid or user not found
+    Dependency to get the current authenticated user from JWT token or internal agent key.
     """
     token = credentials.credentials
 
@@ -56,11 +46,10 @@ async def get_current_user(
     if payload is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
+            detail="Invalid, expired, or revoked token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Extract user_id from token
     user_id: str = payload.get("sub")
     if user_id is None:
         raise HTTPException(
@@ -69,7 +58,6 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Fetch user from database
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
@@ -92,15 +80,7 @@ async def get_current_user(
 def require_role(*allowed_roles: str):
     """
     Dependency factory to require specific user roles.
-
-    Args:
-        *allowed_roles: Variable number of allowed role strings
-
-    Returns:
-        Dependency function that checks user role
-
-    Example:
-        @app.get("/admin-only", dependencies=[Depends(require_role("SUPERADMIN"))])
+    Raises 403 Forbidden if current user's role is not authorized.
     """
     async def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in allowed_roles:
@@ -113,18 +93,33 @@ def require_role(*allowed_roles: str):
     return role_checker
 
 
+def require_org_access(target_org_id_param: str = "org_id"):
+    """
+    Multi-tenant isolation dependency factory:
+    Ensures users can ONLY view/mutate data belonging to their own organization,
+    unless they hold SUPERADMIN or CONTROL_ROOM_DISPATCHER roles.
+    """
+    async def org_access_checker(
+        current_user: User = Depends(get_current_user)
+    ) -> User:
+        # SUPERADMIN and CONTROL_ROOM_DISPATCHER can coordinate across all organizations
+        if current_user.role in ("SUPERADMIN", "CONTROL_ROOM_DISPATCHER"):
+            return current_user
+
+        if current_user.organization_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access forbidden: user is not assigned to an organization",
+            )
+
+        return current_user
+
+    return org_access_checker
+
+
 def require_org_type(*allowed_org_types: str):
     """
-    Dependency factory to require specific organization types.
-
-    Args:
-        *allowed_org_types: Variable number of allowed organization type strings
-
-    Returns:
-        Dependency function that checks user's organization type
-
-    Example:
-        @app.get("/hospital-only", dependencies=[Depends(require_org_type("HOSPITAL"))])
+    Dependency factory to require specific organization types (e.g., HOSPITAL, POLICE, FIRE).
     """
     async def org_type_checker(
         current_user: User = Depends(get_current_user),
@@ -136,7 +131,6 @@ def require_org_type(*allowed_org_types: str):
                 detail="Access forbidden: user must be affiliated with an organization",
             )
 
-        # Fetch organization to check type
         result = await db.execute(
             select(Organization).where(Organization.id == current_user.organization_id)
         )

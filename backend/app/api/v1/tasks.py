@@ -53,6 +53,18 @@ async def get_task(
             detail="Task not found"
         )
 
+    # Multi-tenant and role authorization check
+    if current_user.role not in ("SUPERADMIN", "CONTROL_ROOM_DISPATCHER", "TRIAGE_DOCTOR"):
+        is_assigned = (
+            task.assigned_user_id == current_user.id or
+            (current_user.organization_id is not None and task.assigned_organization_id == current_user.organization_id)
+        )
+        if not is_assigned:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this task"
+            )
+
     return ResponseTaskResponse(
         id=task.id,
         incident_id=task.incident_id,

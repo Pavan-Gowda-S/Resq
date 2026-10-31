@@ -1,6 +1,6 @@
 """
 RESQ Core Application Entrypoint.
-Initializes FastAPI gateway, registers middleware, handles exceptions, and mounts routers.
+Initializes FastAPI gateway, registers security middlewares, handles exceptions, and mounts routers.
 """
 import os
 from datetime import datetime, timezone
@@ -19,18 +19,13 @@ from backend.app.services.pubsub_service import connect_redis, disconnect_redis
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifespan manager.
-    Executes startup and shutdown logic.
-    """
-    # Startup: Enable PostGIS extension
+    """Application lifespan manager."""
     try:
         await enable_postgis_extension()
         print("[+] PostGIS extension enabled successfully")
     except Exception as e:
         print(f"[-] Failed to enable PostGIS extension: {e}")
 
-    # Startup: Connect to Redis (skip in testing)
     if os.getenv("TESTING") != "1":
         try:
             await connect_redis()
@@ -39,7 +34,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown: Disconnect Redis
     if os.getenv("TESTING") != "1":
         try:
             await disconnect_redis()
@@ -58,7 +52,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Rate limiter setup (skip in testing)
+# Rate limiter setup
 if os.getenv("TESTING") != "1":
     from backend.app.middleware.rate_limiter import limiter
     from slowapi import _rate_limit_exceeded_handler
@@ -67,16 +61,25 @@ if os.getenv("TESTING") != "1":
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS Middleware configuration
+# 1. Security Headers & Payload Size Middleware (Outermost)
+from backend.app.middleware.security_headers import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 2. Strict CORS Configuration (Environment-controlled)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",") if origin.strip()]
+if os.getenv("ENVIRONMENT") == "development" or os.getenv("TESTING") == "1":
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict to specific domains in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials=True if allowed_origins != ["*"] else False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
-# Audit log middleware (after CORS)
+# 3. Sanitized Audit Log Middleware
 from backend.app.middleware.audit_middleware import AuditLogMiddleware
 app.add_middleware(AuditLogMiddleware)
 
@@ -88,7 +91,7 @@ app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(resources.router)
 app.include_router(sync.router, prefix="/api/v1")
 
-# Mount WebSocket router (no /api/v1 prefix)
+# Mount WebSocket router
 from backend.app.api.v1 import websockets
 app.include_router(websockets.router)
 
@@ -98,40 +101,35 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     timestamp: str
-    database: str
 
 
-@app.get("/", tags=["Root"])
-async def root():
-    return {
-        "message": "Welcome to the RESQ Emergency Coordination Platform API",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
-
-@app.get("/health", response_model=HealthResponse, status_code=status.HTTP_200_OK, tags=["Health"])
-async def health_check(db: AsyncSession = Depends(get_db)):
-    """
-    Enhanced health check endpoint to verify backend service and database readiness.
-    Performs an active database connection check.
-    """
-    database_status = "unhealthy"
-
-    try:
-        # Execute a simple query to verify database connectivity
-        result = await db.execute(text("SELECT 1"))
-        if result.scalar() == 1:
-            database_status = "connected"
-    except Exception as e:
-        database_status = f"error: {str(e)}"
-
-    overall_status = "healthy" if database_status == "connected" else "degraded"
-
+@app.get("/health", response_model=HealthResponse, tags=["Health"])
+async def health_check():
+    """Health check endpoint with timestamp."""
     return HealthResponse(
-        status=overall_status,
+        status="healthy",
         service="resq-backend",
         version="0.1.0",
-        timestamp=datetime.now(timezone.utc).isoformat(),
-        database=database_status
+        timestamp=datetime.now(timezone.utc).isoformat()
     )
+
+
+@app.get("/health/db", tags=["Health"])
+async def health_check_db(db: AsyncSession = Depends(get_db)):
+    """Health check endpoint that verifies database and PostGIS connectivity."""
+    try:
+        result = await db.execute(text("SELECT postgis_version();"))
+        postgis_ver = result.scalar()
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "postgis_version": postgis_ver,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "database": "disconnected",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }

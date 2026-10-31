@@ -43,6 +43,7 @@ from geoalchemy2.types import Geography
 from sqlalchemy import func
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
+from backend.app.core.security.crypto import field_crypto
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -113,7 +114,7 @@ async def report_incident(
     incident_report = IncidentReport(
         incident_id=incident.id,
         reporter_name=report_data.reporter_name,
-        reporter_phone=report_data.reporter_phone,
+        reporter_phone=field_crypto.encrypt(report_data.reporter_phone) if report_data.reporter_phone else None,
         raw_text=report_data.description,
         reported_location=WKTElement(location_wkt, srid=4326),
         reported_landmark=report_data.landmark,
@@ -289,6 +290,14 @@ async def list_incidents(
     """
     query = select(Incident)
 
+    # Multi-tenant and role authorization check:
+    # Field responders and org admins only see incidents with tasks assigned to their org,
+    # unless they hold SUPERADMIN or CONTROL_ROOM_DISPATCHER roles.
+    if current_user.role in ("FIELD_RESPONDER", "ORG_ADMIN") and current_user.organization_id is not None:
+        query = query.join(ResponseTask, ResponseTask.incident_id == Incident.id).where(
+            ResponseTask.assigned_organization_id == current_user.organization_id
+        ).distinct()
+
     # Apply filters
     filters = []
     if status_filter:
@@ -400,7 +409,7 @@ async def get_incident(
                 "id": report.id,
                 "incident_id": report.incident_id,
                 "reporter_name": report.reporter_name,
-                "reporter_phone": report.reporter_phone,
+                "reporter_phone": field_crypto.decrypt(report.reporter_phone),
                 "raw_text": report.raw_text,
                 "reported_location": wkb_to_geojson(report.reported_location),
                 "reported_landmark": report.reported_landmark,

@@ -1,9 +1,10 @@
 """
 Audit log middleware for tracking authenticated mutating requests.
+Sanitizes sensitive fields (passwords, tokens, keys) before recording.
 """
 import time
 import json
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -12,6 +13,26 @@ from starlette.responses import Response
 from backend.app.models.audit_log import AuditLog
 from backend.app.database.config import AsyncSessionLocal
 from backend.app.auth.security import decode_access_token
+
+SENSITIVE_KEYS = {
+    "password", "password_hash", "access_token", "refresh_token",
+    "token", "secret", "secret_key", "api_key", "phone"
+}
+
+
+def sanitize_audit_data(data: Any) -> Any:
+    """Recursively redacts sensitive keys from audit log payloads."""
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            if k.lower() in SENSITIVE_KEYS:
+                sanitized[k] = "[REDACTED]"
+            else:
+                sanitized[k] = sanitize_audit_data(v)
+        return sanitized
+    elif isinstance(data, list):
+        return [sanitize_audit_data(item) for item in data]
+    return data
 
 
 class AuditLogMiddleware(BaseHTTPMiddleware):
@@ -23,19 +44,15 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
     MUTATING_METHODS = {"POST", "PATCH", "PUT", "DELETE"}
 
     async def dispatch(self, request: Request, call_next):
-        # Skip non-mutating methods
         if request.method not in self.MUTATING_METHODS:
             return await call_next(request)
 
-        # Skip specific paths
         if request.url.path in self.SKIP_PATHS:
             return await call_next(request)
 
-        # Skip WebSocket upgrades
         if request.headers.get("upgrade") == "websocket":
             return await call_next(request)
 
-        # Extract user_id from JWT token (if present)
         user_id: Optional[UUID] = None
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -47,27 +64,25 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                     if user_id_str:
                         user_id = UUID(user_id_str)
             except Exception:
-                pass  # Invalid token, proceed without user_id
+                pass
 
-        # Execute request
         start_time = time.time()
         response = await call_next(request)
         execution_time = time.time() - start_time
 
-        # Record audit log asynchronously (don't block response)
         try:
             await self._record_audit_log(
                 user_id=user_id,
                 method=request.method,
                 path=request.url.path,
-                query_params=dict(request.query_params),
+                query_params=sanitize_audit_data(dict(request.query_params)),
                 ip_address=request.client.host if request.client else None,
                 status_code=response.status_code,
                 execution_time=execution_time
             )
         except Exception as e:
-            # Never crash the request due to audit logging failure
-            print(f"⚠ Audit log failed: {e}")
+            # Audit log failure must not crash client request
+            pass
 
         return response
 
@@ -81,7 +96,7 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         status_code: int,
         execution_time: float
     ) -> None:
-        """Write audit log to database."""
+        """Write sanitized audit log to database."""
         async with AsyncSessionLocal() as session:
             try:
                 action = f"{method} {path}"
@@ -105,6 +120,3 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
                 await session.commit()
             except Exception as e:
                 await session.rollback()
-                print(f"✗ Failed to write audit log: {e}")
-            finally:
-                await session.close()
