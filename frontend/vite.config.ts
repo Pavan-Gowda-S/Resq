@@ -18,7 +18,7 @@ export default defineConfig({
       host: "0.0.0.0",
       proxy: {
         "/api/public/resq": {
-          target: process.env.VITE_BACKEND_URL || "https://exception-guru-interact-stays.trycloudflare.com",
+          target: process.env.VITE_BACKEND_URL || "https://disposition-thorough-contracts-cadillac.trycloudflare.com",
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api\/public\/resq/, ""),
           ws: true,
