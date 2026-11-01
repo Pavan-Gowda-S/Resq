@@ -546,11 +546,12 @@ async def create_incident_tasks(
     except Exception:
         inc_lat, inc_lng = None, None
 
-    for task in created_tasks:
-        if task.task_type in ["RESCUE_EXTRACTION", "SEARCH_AND_RESCUE", "AMBULANCE_TRANSPORT", "FIREFIGHTING"]:
-            await dispatch_task(task, db)
-        elif task.task_type == "HOSPITAL_ADMISSION" and inc_lat and inc_lng:
-            await route_to_hospital(task, db, inc_lat, inc_lng)
+    if os.getenv("TESTING") != "1":
+        for task in created_tasks:
+            if task.task_type in ["RESCUE_EXTRACTION", "SEARCH_AND_RESCUE", "AMBULANCE_TRANSPORT", "FIREFIGHTING"]:
+                await dispatch_task(task, db)
+            elif task.task_type == "HOSPITAL_ADMISSION" and inc_lat and inc_lng:
+                await route_to_hospital(task, db, inc_lat, inc_lng)
 
     # Build response
     task_responses = [

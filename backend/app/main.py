@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, status, Depends
+from fastapi import FastAPI, status, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -82,6 +82,13 @@ app.add_middleware(
 # 3. Sanitized Audit Log Middleware
 from backend.app.middleware.audit_middleware import AuditLogMiddleware
 app.add_middleware(AuditLogMiddleware)
+
+# Support frontend /api/public/resq proxy prefix transparently
+@app.middleware("http")
+async def proxy_prefix_middleware(request: Request, call_next):
+    if request.scope.get("path", "").startswith("/api/public/resq"):
+        request.scope["path"] = request.scope["path"][len("/api/public/resq"):] or "/"
+    return await call_next(request)
 
 # Mount API v1 routers
 app.include_router(auth.router, prefix="/api/v1")

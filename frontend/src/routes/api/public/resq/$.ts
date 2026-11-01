@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 // Forwards browser requests to the RESQ FastAPI backend so the app is not
 // blocked by the backend's CORS allow-list. Only the fixed backend host is reachable.
-const BASE = "https://jason-promote-wisconsin-simultaneously.trycloudflare.com";
+const BASE = process.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";
 
 // Lightweight proxy-level cache to protect the Cloudflare tunnel from rate limiting / resource exhaustion
 const proxyGetCache = new Map<string, { time: number; status: number; text: string; contentType: string }>();
@@ -10,9 +10,11 @@ const CACHE_TTL_MS = 3500; // 3.5s cache for read queries across open tabs
 
 async function forward(request: Request, splat: string) {
   const url = new URL(request.url);
-  const path = splat.replace(/^\/+/, "");
+  const rawPath = splat || url.pathname.replace(/^\/api\/public\/resq\/?/, "");
+  const path = rawPath.replace(/^\/+/, "");
   if (path.includes("..")) return new Response("Bad path", { status: 400 });
   const target = `${BASE}/${path}${url.search}`;
+  console.log(`[PROXY] Forwarding ${request.method} ${url.pathname} to ${target}`);
 
   // Serve from cache for repeated GETs to prevent Cloudflare tunnel rate limiting
   if (request.method === "GET") {

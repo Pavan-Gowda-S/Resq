@@ -13,6 +13,18 @@ export default defineConfig({
     server: { entry: "server" },
   },
   vite: {
+    server: {
+      port: 3000,
+      host: "0.0.0.0",
+      proxy: {
+        "/api/public/resq": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          rewrite: (path: string) => path.replace(/^\/api\/public\/resq/, ""),
+          ws: true,
+        },
+      },
+    },
     // Pre-bundle UI deps up front so a mid-session re-optimization can't load two React copies.
     optimizeDeps: {
       include: [
