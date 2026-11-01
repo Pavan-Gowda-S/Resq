@@ -30,6 +30,7 @@ async def route_to_hospital(task: ResponseTask, db: AsyncSession, lat: float, ln
     """
     try:
         # Search for hospitals with available ICU beds
+        # Returns HospitalSearchResult objects with .organization_id and .hospital_name
         hospitals = await search_hospitals_by_location(
             db=db,
             latitude=lat,
@@ -43,14 +44,27 @@ async def route_to_hospital(task: ResponseTask, db: AsyncSession, lat: float, ln
             return False
 
         # Pick nearest hospital (already sorted by distance)
-        selected_hospital = hospitals[0]
+        selected = hospitals[0]
+
+        # HospitalSearchResult uses .organization_id and .hospital_name (not .id / .name)
+        hosp_id = getattr(selected, "organization_id", None)
+        hosp_name = getattr(selected, "hospital_name", "Unknown Hospital")
+
+        if hosp_id is None:
+            # Fallback for dict-style result
+            hosp_id = selected.get("id") or selected.get("organization_id")
+            hosp_name = selected.get("name") or selected.get("hospital_name", "Unknown Hospital")
+
+        if hosp_id is None:
+            logger.error(f"Could not extract hospital ID from result: {selected}")
+            return False
 
         # Create atomic reservation
         try:
             reservation = await create_reservation(
                 db=db,
                 task_id=task.id,
-                organization_id=selected_hospital["id"] if isinstance(selected_hospital, dict) else selected_hospital.id,
+                organization_id=hosp_id,
                 resource_type="HOSPITAL_ICU_BED",
                 quantity=1,
             )
@@ -58,10 +72,7 @@ async def route_to_hospital(task: ResponseTask, db: AsyncSession, lat: float, ln
             logger.error(f"Failed to create reservation for task {task.id}: {e}")
             return False
 
-        hosp_id = selected_hospital["id"] if isinstance(selected_hospital, dict) else selected_hospital.id
-        hosp_name = selected_hospital["name"] if isinstance(selected_hospital, dict) else selected_hospital.name
-
-        # Update task
+        # Update task status
         task.assigned_organization_id = hosp_id
         task.status = TaskStatus.ASSIGNED.value
         task.assigned_at = datetime.now(timezone.utc)
@@ -98,6 +109,7 @@ async def route_to_hospital(task: ResponseTask, db: AsyncSession, lat: float, ln
 
         logger.info(f"Task {task.id} routed to hospital {hosp_name} with reservation {reservation.id}")
         return True
+
     except Exception as exc:
         logger.error(f"Error in route_to_hospital for task {getattr(task, 'id', None)}: {exc}", exc_info=True)
         return False
