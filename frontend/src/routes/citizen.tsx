@@ -14,6 +14,9 @@ import {
   FileText,
   Copy,
   CheckCircle2,
+  MessageSquare,
+  Smartphone,
+  AlertTriangle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +27,22 @@ import { submitReport } from "@/lib/api";
 import { createAndPropagateEmergency } from "@/lib/crisis-sync";
 import { DISTRICTS, extractIncident, HAZARDS, nearestDistrict, type Hazard } from "@/lib/resq-data";
 import { cn } from "@/lib/utils";
+
+// PES_HACK Canonical Enums
+const EMERGENCY_TYPES = ["FLOOD", "FIRE", "MEDICAL", "COLLAPSE", "OTHER"] as const;
+type EmergencyType = typeof EMERGENCY_TYPES[number];
+
+const VICTIM_STATUSES = [
+  "TRAPPED",
+  "INJURED",
+  "UNCONSCIOUS",
+  "NEED_EVACUATION",
+  "SAFE_BUT_NEED_HELP",
+] as const;
+type VictimStatus = typeof VICTIM_STATUSES[number];
+
+const SMS_GATEWAY_NUMBER = "+919847123112"; // Kerala State Disaster Emergency Hotline
+const LOCATION_UNKNOWN_MARKER = "LOC:UNKNOWN";
 
 // Schema for offline payload compatibility with Bhuvan's offline sync repo
 export interface OfflineEmergencyPayload {
@@ -79,6 +98,14 @@ function CitizenPage() {
   const [offlinePacket, setOfflinePacket] = useState<string | null>(null);
   const [copiedPacket, setCopiedPacket] = useState(false);
 
+  // PES_HACK SMS Interface State
+  const [smsMode, setSmsMode] = useState(false);
+  const [emergencyType, setEmergencyType] = useState<EmergencyType>("FLOOD");
+  const [victimStatus, setVictimStatus] = useState<VictimStatus>("TRAPPED");
+  const [sendWithoutLocation, setSendWithoutLocation] = useState(false);
+  const [smsPayload, setSmsPayload] = useState<string>("");
+  const [gsmCharCount, setGsmCharCount] = useState(0);
+
   const recRef = useRef<SR | null>(null);
   const audioRef = useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
 
@@ -86,22 +113,105 @@ function CitizenPage() {
   useEffect(() => {
     const handleOnline = () => {
       setIsOfflineMode(false);
+      setSmsMode(false);
       toast.success("Online connection restored");
     };
     const handleOffline = () => {
       setIsOfflineMode(true);
-      toast.warning("Network connection lost — Switched to Offline SOS mode");
+      setSmsMode(true);
+      toast.warning("Network connection lost — Switched to Offline SMS mode");
     };
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setIsOfflineMode(true);
+      setSmsMode(true);
     }
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+
+  // Calculate GSM-7 character count (pipe character counts as 2 units in extended table)
+  const calculateGSM7Count = (text: string): number => {
+    const extendedChars = ['|', '^', '{', '}', '[', ']', '~', '\\'];
+    let count = 0;
+    for (const char of text) {
+      count += extendedChars.includes(char) ? 2 : 1;
+    }
+    return count;
+  };
+
+  // Generate PES_HACK SMS payload
+  const generateSMSPayload = (): string => {
+    let locationPart: string;
+
+    if (sendWithoutLocation || !geo) {
+      locationPart = LOCATION_UNKNOWN_MARKER;
+    } else {
+      const lat = geo.lat.toFixed(5);
+      const lng = geo.lng.toFixed(5);
+      locationPart = `${lat},${lng}`;
+    }
+
+    return `${emergencyType} | ${victimStatus} | ${locationPart}`;
+  };
+
+  // Update SMS payload whenever inputs change
+  useEffect(() => {
+    if (smsMode) {
+      const payload = generateSMSPayload();
+      setSmsPayload(payload);
+      setGsmCharCount(calculateGSM7Count(payload));
+    }
+  }, [smsMode, emergencyType, victimStatus, geo, sendWithoutLocation]);
+
+  // Detect platform and generate SMS URL
+  const generateSMSLink = (): string => {
+    const userAgent = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(userAgent);
+    const encodedMessage = encodeURIComponent(smsPayload);
+
+    // iOS uses & separator, Android uses ? separator
+    if (isIOS) {
+      return `sms:${SMS_GATEWAY_NUMBER}&body=${encodedMessage}`;
+    } else {
+      return `sms:${SMS_GATEWAY_NUMBER}?body=${encodedMessage}`;
+    }
+  };
+
+  // Send offline SMS SOS
+  const sendOfflineSMS = () => {
+    // Queue to localStorage
+    try {
+      const queueKey = "resq_offline_emergency_queue";
+      const existing = JSON.parse(localStorage.getItem(queueKey) || "[]");
+      existing.unshift({
+        version: "1.0",
+        protocol: "SMS_GATEWAY",
+        sms_payload: smsPayload,
+        emergency_type: emergencyType,
+        victim_status: victimStatus,
+        latitude: geo?.lat ?? null,
+        longitude: geo?.lng ?? null,
+        location_unknown: sendWithoutLocation || !geo,
+        district,
+        timestamp: new Date().toISOString(),
+        client_id: `sms_${Math.random().toString(36).slice(2, 10)}`,
+      });
+      localStorage.setItem(queueKey, JSON.stringify(existing.slice(0, 20)));
+      toast.success("Emergency queued for sync");
+    } catch (e) {
+      console.error("Failed to queue emergency:", e);
+    }
+
+    // Open SMS app with prefilled message
+    const smsLink = generateSMSLink();
+    window.location.href = smsLink;
+
+    toast.success(`Opening SMS app to ${SMS_GATEWAY_NUMBER}`);
+  };
 
   // Generate offline payload compatible with Bhuvan's offline sync repo
   const generateOfflinePacket = () => {
@@ -253,176 +363,322 @@ function CitizenPage() {
         <div className="flex w-full items-center justify-between">
           <div className="label-caps">Citizen SOS</div>
           <div className="flex items-center gap-2">
-            {/* Offline Mode Toggle Button */}
-            <button
-              onClick={() => {
-                const next = !isOfflineMode;
-                setIsOfflineMode(next);
-                if (next) {
-                  generateOfflinePacket();
-                  toast.warning("Switched to Offline SOS mode. Direct packet generated.");
-                } else {
-                  toast.success("Switched to Live Online mode.");
-                }
-              }}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold border transition-all",
-                isOfflineMode
-                  ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
-                  : "bg-muted text-muted-foreground border-border hover:text-foreground"
-              )}
-              title="Toggle Offline SOS Mode"
+            {/* Mode Toggle: Online vs Offline SMS */}
+            <div className="flex rounded border-2 border-border p-0.5 text-xs">
+              <button
+                onClick={() => {
+                  setSmsMode(false);
+                  setIsOfflineMode(false);
+                  toast.success("Switched to Online SOS mode");
+                }}
+                className={cn(
+                  "rounded px-3 py-1.5 font-semibold transition-all flex items-center gap-1.5",
+                  !smsMode
+                    ? "bg-emerald-500 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Wifi className="size-3" />
+                Online SOS
+              </button>
+              <button
+                onClick={() => {
+                  setSmsMode(true);
+                  setIsOfflineMode(true);
+                  toast.warning("Switched to Offline Cellular (SMS) mode");
+                }}
+                className={cn(
+                  "rounded px-3 py-1.5 font-semibold transition-all flex items-center gap-1.5",
+                  smsMode
+                    ? "bg-amber-500 text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Smartphone className="size-3" />
+                Offline SMS
+              </button>
+            </div>
+
+            {!smsMode && (
+              <div className="flex rounded border border-border p-0.5 text-xs">
+                {(["en-IN", "ml-IN"] as const).map((l) => (
+                  <button key={l} onClick={() => setLang(l)} className={cn("rounded px-2.5 py-1", lang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                    {l === "en-IN" ? "English" : "മലയാളം"}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* SMS Mode Interface */}
+        {smsMode ? (
+          <div className="mt-6 w-full space-y-6">
+            {/* SMS Mode Header */}
+            <div className="rounded-xl border-2 border-amber-500/40 bg-amber-500/10 p-4 text-left shadow-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-amber-400">
+                  <MessageSquare className="size-5 animate-pulse" />
+                  Offline Cellular SMS Mode
+                </div>
+                <span className="rounded bg-amber-500/30 px-2.5 py-1 text-[10px] font-mono font-bold text-amber-200">
+                  2G GSM Ready
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Works without internet. Standard 2G cellular SMS to Kerala State Disaster Gateway <span className="font-mono text-amber-400">{SMS_GATEWAY_NUMBER}</span>. Structured payload ensures machine-parseable emergency data.
+              </p>
+            </div>
+
+            {/* Emergency Type Selection */}
+            <div>
+              <div className="mb-3 text-sm font-bold flex items-center gap-2">
+                <AlertTriangle className="size-4 text-primary" />
+                Emergency Type
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {EMERGENCY_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setEmergencyType(type)}
+                    className={cn(
+                      "min-h-[48px] rounded-lg border-2 px-4 py-3 text-sm font-bold transition-all",
+                      emergencyType === type
+                        ? "border-primary bg-primary text-primary-foreground shadow-md scale-105"
+                        : "border-border bg-surface text-foreground hover:border-primary/50"
+                    )}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Victim Status Selection */}
+            <div>
+              <div className="mb-3 text-sm font-bold">Your Situation</div>
+              <div className="grid grid-cols-1 gap-2">
+                {VICTIM_STATUSES.map((status) => (
+                  <button
+                    key={status}
+                    onClick={() => setVictimStatus(status)}
+                    className={cn(
+                      "min-h-[48px] rounded-lg border-2 px-4 py-3 text-left text-sm font-semibold transition-all",
+                      victimStatus === status
+                        ? "border-primary bg-primary text-primary-foreground shadow-md"
+                        : "border-border bg-surface text-foreground hover:border-primary/50"
+                    )}
+                  >
+                    {status.replace(/_/g, " ")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* GPS Status & Send Without Location */}
+            <div className="rounded-lg border border-border bg-surface p-4">
+              <div className="flex items-center gap-2 text-sm mb-3">
+                <Crosshair className="size-4 text-primary" />
+                {geo ? (
+                  <>
+                    <span className="font-mono text-xs">{geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}</span>
+                    <span className={cn("ml-auto rounded px-2 py-0.5 font-mono text-[10px]", geo.acc < 50 ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground")}>
+                      ±{geo.acc}m
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground text-xs">{geoErr ?? "Detecting GPS…"}</span>
+                )}
+                {!geo && <button onClick={locate} className="ml-auto text-xs text-primary font-semibold">Retry GPS</button>}
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendWithoutLocation}
+                  onChange={(e) => setSendWithoutLocation(e.target.checked)}
+                  className="size-4 rounded border-border"
+                />
+                <span className="text-sm font-medium">Send without location (LOC:UNKNOWN)</span>
+              </label>
+            </div>
+
+            {/* Live SMS Preview */}
+            <div className="rounded-lg border-2 border-primary bg-surface p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold uppercase text-muted-foreground">Live SMS Preview</span>
+                <span className={cn(
+                  "rounded px-2 py-0.5 font-mono text-[10px] font-bold",
+                  gsmCharCount <= 160 ? "bg-success/20 text-success" : "bg-warning/20 text-warning"
+                )}>
+                  {gsmCharCount} / 160 chars · {Math.ceil(gsmCharCount / 160)} SMS segment{Math.ceil(gsmCharCount / 160) > 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="font-mono text-sm bg-muted/80 p-3 rounded text-foreground break-all leading-relaxed">
+                {smsPayload || "Payload will appear here..."}
+              </div>
+              <div className="mt-2 text-[10px] text-muted-foreground">
+                Gateway: <span className="font-mono text-primary">{SMS_GATEWAY_NUMBER}</span>
+              </div>
+            </div>
+
+            {/* Emergency Dispatch Button */}
+            <Button
+              size="lg"
+              onClick={sendOfflineSMS}
+              disabled={!smsPayload}
+              className="w-full h-16 text-lg font-bold uppercase bg-amber-500 hover:bg-amber-600 text-white shadow-xl"
             >
-              {isOfflineMode ? <WifiOff className="size-3 text-amber-400" /> : <Wifi className="size-3 text-emerald-400" />}
-              {isOfflineMode ? "Offline SOS" : "Online"}
+              <MessageSquare className="size-6 mr-2" />
+              SEND OFFLINE SOS (OPENS SMS APP)
+            </Button>
+
+            <p className="text-center text-xs text-muted-foreground">
+              Clicking will open your SMS app with the gateway number and payload pre-filled. Send immediately.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Original Online Mode Interface */}
+            {isOfflineMode && !smsMode && (
+              <div className="mt-4 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-left shadow-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
+                    <Radio className="size-4 animate-pulse" />
+                    Offline Emergency Packet Mode
+                  </div>
+                  <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono text-amber-300">
+                    Mesh / SMS Ready
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  No cellular data needed. Generates a structured geographical packet (hazard, GPS coordinates, casualties) stored in local IndexedDB queue for offline sync.
+                </p>
+
+                {offlinePacket && (
+                  <div className="mt-3 rounded-lg bg-background/80 p-3 border border-border">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-mono uppercase text-muted-foreground flex items-center gap-1">
+                        <FileText className="size-3 text-amber-400" /> Compact Mesh Payload
+                      </span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(offlinePacket);
+                          setCopiedPacket(true);
+                          toast.success("Packet copied to clipboard");
+                          setTimeout(() => setCopiedPacket(false), 2000);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300"
+                      >
+                        {copiedPacket ? <CheckCircle2 className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                        {copiedPacket ? "Copied" : "Copy Payload"}
+                      </button>
+                    </div>
+                    <div className="font-mono text-xs break-all bg-muted/60 p-2 rounded text-foreground select-all">
+                      {offlinePacket}
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={generateOfflinePacket}
+                    className="text-xs h-8 border-amber-500/30 hover:bg-amber-500/20 text-amber-300"
+                  >
+                    Refresh Coordinates & Packet
+                  </Button>
+                </div>
+              </div>
+            )}
+            <h1 className="mt-4 text-center text-4xl font-bold uppercase">{listening ? "Listening…" : "Tap & speak"}</h1>
+            <p className="text-center text-sm text-muted-foreground">Say what happened, how many people, who is trapped.</p>
+
+            <button
+              onClick={toggleMic}
+              aria-label={listening ? "Stop recording" : "Start voice SOS"}
+              className={cn(
+                "mt-8 grid size-24 place-items-center rounded-full bg-primary text-primary-foreground shadow-glow transition-transform active:scale-95",
+                listening && "animate-sos",
+              )}
+            >
+              {listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}
             </button>
 
-            <div className="flex rounded border border-border p-0.5 text-xs">
-              {(["en-IN", "ml-IN"] as const).map((l) => (
-                <button key={l} onClick={() => setLang(l)} className={cn("rounded px-2.5 py-1", lang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                  {l === "en-IN" ? "English" : "മലയാളം"}
+            <div className="mt-6 flex h-14 w-full items-center justify-center gap-[3px]" aria-hidden>
+              {levels.map((v, i) => (
+                <div key={i} className={cn("w-1.5 rounded-full", listening ? "bg-primary" : "bg-muted")} style={{ height: `${Math.round(v * 100)}%` }} />
+              ))}
+            </div>
+
+            <Textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Live transcript appears here…"
+              className="mt-4 min-h-28 bg-surface"
+            />
+
+            <label className="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border py-4 text-sm text-muted-foreground hover:border-primary">
+              <Camera className="size-5" /> {photo ? "Replace photo" : "Capture / upload disaster photo"}
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
+            </label>
+            {photo && (
+              <div className="relative mt-3 w-full">
+                <img src={photo} alt="Disaster proof" className="max-h-48 w-full rounded-lg object-cover" />
+                <button onClick={() => setPhoto(null)} className="absolute right-2 top-2 rounded-full bg-background/80 p-1" aria-label="Remove photo"><X className="size-4" /></button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {!smsMode && (
+        <div className="grid content-start gap-4 rounded-lg border border-border bg-card p-6">
+          <div className="label-caps">Incident summary · auto-filled</div>
+          <div>
+            <div className="mb-2 text-sm font-medium">Hazard type</div>
+            <div className="flex flex-wrap gap-2">
+              {HAZARDS.map((h) => (
+                <button key={h} onClick={() => setHazard(h)} className={cn("rounded border px-3 py-2 text-sm font-medium", hazard === h ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground")}>
+                  {h}
                 </button>
               ))}
             </div>
           </div>
-        </div>
-
-        {/* Offline SOS Banner & Direct Packet Interface */}
-        {isOfflineMode && (
-          <div className="mt-4 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-left shadow-md">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
-                <Radio className="size-4 animate-pulse" />
-                Offline Emergency Packet Mode
-              </div>
-              <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono text-amber-300">
-                Mesh / SMS Ready
-              </span>
+          <div>
+            <div className="mb-2 flex justify-between text-sm font-medium"><span>People affected</span><span className="font-mono text-2xl">{affected}</span></div>
+            <Slider value={[affected]} min={1} max={50} step={1} onValueChange={(v) => setAffected(v[0] ?? 1)} />
+          </div>
+          <div>
+            <div className="mb-2 flex justify-between text-sm font-medium"><span>Trapped</span><span className="font-mono text-2xl text-primary">{trapped}</span></div>
+            <Slider value={[trapped]} min={0} max={Math.max(affected, 1)} step={1} onValueChange={(v) => setTrapped(v[0] ?? 0)} />
+          </div>
+          <div className="rounded border border-border bg-surface p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <Crosshair className="size-4 text-primary" />
+              {geo ? (
+                <>
+                  <span className="font-mono">{geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}</span>
+                  <span className={cn("ml-auto rounded px-2 py-0.5 font-mono text-xs", geo.acc < 50 ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground")}>±{geo.acc}m</span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">{geoErr ?? "Detecting GPS…"}</span>
+              )}
+              {!geo && <button onClick={locate} className="ml-auto text-xs text-primary">Retry</button>}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-              No cellular data needed. Generates a structured geographical packet (hazard, GPS coordinates, casualties) stored in local IndexedDB queue for offline sync.
-            </p>
-
-            {offlinePacket && (
-              <div className="mt-3 rounded-lg bg-background/80 p-3 border border-border">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-mono uppercase text-muted-foreground flex items-center gap-1">
-                    <FileText className="size-3 text-amber-400" /> Compact Mesh Payload
-                  </span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(offlinePacket);
-                      setCopiedPacket(true);
-                      toast.success("Packet copied to clipboard");
-                      setTimeout(() => setCopiedPacket(false), 2000);
-                    }}
-                    className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300"
-                  >
-                    {copiedPacket ? <CheckCircle2 className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
-                    {copiedPacket ? "Copied" : "Copy Payload"}
-                  </button>
-                </div>
-                <div className="font-mono text-xs break-all bg-muted/60 p-2 rounded text-foreground select-all">
-                  {offlinePacket}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-3 flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={generateOfflinePacket}
-                className="text-xs h-8 border-amber-500/30 hover:bg-amber-500/20 text-amber-300"
-              >
-                Refresh Coordinates & Packet
-              </Button>
+            <div className="mt-3 flex items-center gap-2">
+              <MapPin className="size-4 text-muted-foreground" />
+              <select value={district} onChange={(e) => setDistrict(e.target.value)} className="flex-1 rounded border border-input bg-background px-2 py-1.5 text-sm">
+                {DISTRICTS.map((d) => <option key={d.name}>{d.name}</option>)}
+              </select>
             </div>
           </div>
-        )}
-        <h1 className="mt-4 text-center text-4xl font-bold uppercase">{listening ? "Listening…" : "Tap & speak"}</h1>
-        <p className="text-center text-sm text-muted-foreground">Say what happened, how many people, who is trapped.</p>
-
-        <button
-          onClick={toggleMic}
-          aria-label={listening ? "Stop recording" : "Start voice SOS"}
-          className={cn(
-            "mt-8 grid size-24 place-items-center rounded-full bg-primary text-primary-foreground shadow-glow transition-transform active:scale-95",
-            listening && "animate-sos",
-          )}
-        >
-          {listening ? <MicOff className="size-10" /> : <Mic className="size-10" />}
-        </button>
-
-        <div className="mt-6 flex h-14 w-full items-center justify-center gap-[3px]" aria-hidden>
-          {levels.map((v, i) => (
-            <div key={i} className={cn("w-1.5 rounded-full", listening ? "bg-primary" : "bg-muted")} style={{ height: `${Math.round(v * 100)}%` }} />
-          ))}
+          <Button size="lg" className="h-14 text-lg font-bold uppercase" onClick={submit} disabled={sending}>
+            {sending ? <Loader2 className="animate-spin" /> : <Send />} Send SOS
+          </Button>
         </div>
-
-        <Textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Live transcript appears here…"
-          className="mt-4 min-h-28 bg-surface"
-        />
-
-        <label className="mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border py-4 text-sm text-muted-foreground hover:border-primary">
-          <Camera className="size-5" /> {photo ? "Replace photo" : "Capture / upload disaster photo"}
-          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0])} />
-        </label>
-        {photo && (
-          <div className="relative mt-3 w-full">
-            <img src={photo} alt="Disaster proof" className="max-h-48 w-full rounded-lg object-cover" />
-            <button onClick={() => setPhoto(null)} className="absolute right-2 top-2 rounded-full bg-background/80 p-1" aria-label="Remove photo"><X className="size-4" /></button>
-          </div>
-        )}
-      </div>
-
-      <div className="grid content-start gap-4 rounded-lg border border-border bg-card p-6">
-        <div className="label-caps">Incident summary · auto-filled</div>
-        <div>
-          <div className="mb-2 text-sm font-medium">Hazard type</div>
-          <div className="flex flex-wrap gap-2">
-            {HAZARDS.map((h) => (
-              <button key={h} onClick={() => setHazard(h)} className={cn("rounded border px-3 py-2 text-sm font-medium", hazard === h ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground")}>
-                {h}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-2 flex justify-between text-sm font-medium"><span>People affected</span><span className="font-mono text-2xl">{affected}</span></div>
-          <Slider value={[affected]} min={1} max={50} step={1} onValueChange={(v) => setAffected(v[0] ?? 1)} />
-        </div>
-        <div>
-          <div className="mb-2 flex justify-between text-sm font-medium"><span>Trapped</span><span className="font-mono text-2xl text-primary">{trapped}</span></div>
-          <Slider value={[trapped]} min={0} max={Math.max(affected, 1)} step={1} onValueChange={(v) => setTrapped(v[0] ?? 0)} />
-        </div>
-        <div className="rounded border border-border bg-surface p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <Crosshair className="size-4 text-primary" />
-            {geo ? (
-              <>
-                <span className="font-mono">{geo.lat.toFixed(5)}, {geo.lng.toFixed(5)}</span>
-                <span className={cn("ml-auto rounded px-2 py-0.5 font-mono text-xs", geo.acc < 50 ? "bg-success text-success-foreground" : "bg-warning text-warning-foreground")}>±{geo.acc}m</span>
-              </>
-            ) : (
-              <span className="text-muted-foreground">{geoErr ?? "Detecting GPS…"}</span>
-            )}
-            {!geo && <button onClick={locate} className="ml-auto text-xs text-primary">Retry</button>}
-          </div>
-          <div className="mt-3 flex items-center gap-2">
-            <MapPin className="size-4 text-muted-foreground" />
-            <select value={district} onChange={(e) => setDistrict(e.target.value)} className="flex-1 rounded border border-input bg-background px-2 py-1.5 text-sm">
-              {DISTRICTS.map((d) => <option key={d.name}>{d.name}</option>)}
-            </select>
-          </div>
-        </div>
-        <Button size="lg" className="h-14 text-lg font-bold uppercase" onClick={submit} disabled={sending}>
-          {sending ? <Loader2 className="animate-spin" /> : <Send />} Send SOS
-        </Button>
-      </div>
+      )}
     </div>
   );
 }
