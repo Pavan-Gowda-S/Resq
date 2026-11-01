@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 // Forwards browser requests to the RESQ FastAPI backend so the app is not
 // blocked by the backend's CORS allow-list. Only the fixed backend host is reachable.
-const BASE = process.env.VITE_BACKEND_URL || "https://bingo-packs-variation-native.trycloudflare.com";
+const BASE = process.env.VITE_BACKEND_URL || "https://exception-guru-interact-stays.trycloudflare.com";
 
 // Lightweight proxy-level cache to protect the Cloudflare tunnel from rate limiting / resource exhaustion
 const proxyGetCache = new Map<string, { time: number; status: number; text: string; contentType: string }>();
