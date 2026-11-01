@@ -18,7 +18,7 @@ export default defineConfig({
       host: "0.0.0.0",
       proxy: {
         "/api/public/resq": {
-          target: process.env.VITE_BACKEND_URL || "https://competitors-fees-robertson-whom.trycloudflare.com",
+          target: process.env.VITE_BACKEND_URL || "https://committees-receptor-advertisers-manga.trycloudflare.com",
           changeOrigin: true,
           rewrite: (path: string) => path.replace(/^\/api\/public\/resq/, ""),
           ws: true,
