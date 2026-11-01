@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { clearSession, getUser, login, type SessionUser } from "@/lib/api";
+import { clearSession, getUser, login, ensureDemoAuth, type SessionUser } from "@/lib/api";
 
 type Role = { value: string; label: string };
 
@@ -50,11 +50,26 @@ export function StaffGate({ portal, roles, children }: {
     }
   };
 
-  const enterDemo = () => {
-    const label = roles.find((r) => r.value === role)!.label;
-    const u = { full_name: `Demo ${label}`, email: "demo@resq.kerala.gov.in", role };
-    sessionStorage.setItem(`resq.demo.${portal}`, JSON.stringify(u));
-    setUser(u);
+  const enterDemo = async () => {
+    const label = roles.find((r) => r.value === role)?.label ?? role;
+    setBusy(true);
+    try {
+      const authUser = await ensureDemoAuth(label);
+      const u = {
+        ...authUser,
+        full_name: `${label} (Live Session)`,
+        role,
+      };
+      sessionStorage.setItem(`resq.demo.${portal}`, JSON.stringify(u));
+      setUser(u);
+      toast.success(`Connected to Live Database as ${label}`);
+    } catch {
+      const u = { full_name: `Demo ${label}`, email: "demo@resq.kerala.gov.in", role };
+      sessionStorage.setItem(`resq.demo.${portal}`, JSON.stringify(u));
+      setUser(u);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

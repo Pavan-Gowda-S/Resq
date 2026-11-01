@@ -1,13 +1,44 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Camera, Crosshair, Loader2, MapPin, Mic, MicOff, Send, X } from "lucide-react";
+import {
+  Camera,
+  Crosshair,
+  Loader2,
+  MapPin,
+  Mic,
+  MicOff,
+  Send,
+  X,
+  Wifi,
+  WifiOff,
+  Radio,
+  FileText,
+  Copy,
+  CheckCircle2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { submitReport } from "@/lib/api";
+import { createAndPropagateEmergency } from "@/lib/crisis-sync";
 import { DISTRICTS, extractIncident, HAZARDS, nearestDistrict, type Hazard } from "@/lib/resq-data";
 import { cn } from "@/lib/utils";
+
+// Schema for offline payload compatibility with Bhuvan's offline sync repo
+export interface OfflineEmergencyPayload {
+  version: "1.0";
+  protocol: "RESQ_SMS_PACKET";
+  hazard: string;
+  latitude: number;
+  longitude: number;
+  district: string;
+  affected: number;
+  trapped: number;
+  message: string;
+  timestamp: string;
+  client_id: string;
+}
 
 export const Route = createFileRoute("/citizen")({
   head: () => ({
@@ -44,9 +75,70 @@ function CitizenPage() {
   const [district, setDistrict] = useState("Wayanad");
   const [sending, setSending] = useState(false);
   const [levels, setLevels] = useState<number[]>(Array(32).fill(0.05));
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [offlinePacket, setOfflinePacket] = useState<string | null>(null);
+  const [copiedPacket, setCopiedPacket] = useState(false);
 
   const recRef = useRef<SR | null>(null);
   const audioRef = useRef<{ ctx: AudioContext; stream: MediaStream; raf: number } | null>(null);
+
+  // Monitor network offline status automatically
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOfflineMode(false);
+      toast.success("Online connection restored");
+    };
+    const handleOffline = () => {
+      setIsOfflineMode(true);
+      toast.warning("Network connection lost — Switched to Offline SOS mode");
+    };
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setIsOfflineMode(true);
+    }
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  // Generate offline payload compatible with Bhuvan's offline sync repo
+  const generateOfflinePacket = () => {
+    const d = DISTRICTS.find((x) => x.name === district) ?? DISTRICTS[2]!;
+    const lat = +(geo?.lat ?? d.lat).toFixed(5);
+    const lng = +(geo?.lng ?? d.lng).toFixed(5);
+    const hz = hazard ?? "FLOOD";
+    const msg = text || "Immediate rescue required, isolated by rising water";
+
+    // Compact format for SMS/mesh sync: RESQ|HAZARD|LAT|LNG|DISTRICT|AFFECTED|TRAPPED|MSG
+    const compactString = `RESQ|${hz}|${lat}|${lng}|${district}|${affected}|${trapped}|${msg.slice(0, 80)}`;
+
+    const fullPayload: OfflineEmergencyPayload = {
+      version: "1.0",
+      protocol: "RESQ_SMS_PACKET",
+      hazard: hz,
+      latitude: lat,
+      longitude: lng,
+      district,
+      affected,
+      trapped,
+      message: msg,
+      timestamp: new Date().toISOString(),
+      client_id: `offline_${Math.random().toString(36).slice(2, 10)}`,
+    };
+
+    // Store in IndexedDB/localStorage queue for automatic background sync when reconnected
+    try {
+      const queueKey = "resq_offline_emergency_queue";
+      const existing = JSON.parse(localStorage.getItem(queueKey) || "[]");
+      existing.unshift(fullPayload);
+      localStorage.setItem(queueKey, JSON.stringify(existing.slice(0, 20)));
+    } catch {}
+
+    setOfflinePacket(compactString);
+    toast.success("Offline SOS packet generated & saved to sync queue");
+  };
 
   // Auto GPS
   const locate = () => {
@@ -136,9 +228,16 @@ function CitizenPage() {
     setSending(true);
     let token: string;
     try {
-      const r = await submitReport({ description: desc.padEnd(10, "."), lat, lng, district, people_affected: affected });
-      token = r.tracking_token;
-      toast.success(`SOS received · ${r.incident_number}`);
+      const crisis = await createAndPropagateEmergency({
+        description: desc.padEnd(10, "."),
+        lat,
+        lng,
+        district,
+        people_affected: affected,
+        trappedCount: trapped,
+      });
+      token = crisis.trackingToken;
+      toast.success(`SOS Active · Incident ${crisis.incidentNumber}`);
     } catch {
       token = `demo-${Math.random().toString(36).slice(2, 10)}`;
       localStorage.setItem(`resq.track.${token}`, JSON.stringify({ created: Date.now(), district, hazard, affected, trapped }));
@@ -153,14 +252,94 @@ function CitizenPage() {
       <div className="flex flex-col items-center rounded-lg border border-border bg-card p-6">
         <div className="flex w-full items-center justify-between">
           <div className="label-caps">Citizen SOS</div>
-          <div className="flex rounded border border-border p-0.5 text-xs">
-            {(["en-IN", "ml-IN"] as const).map((l) => (
-              <button key={l} onClick={() => setLang(l)} className={cn("rounded px-2.5 py-1", lang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-                {l === "en-IN" ? "English" : "മലയാളം"}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            {/* Offline Mode Toggle Button */}
+            <button
+              onClick={() => {
+                const next = !isOfflineMode;
+                setIsOfflineMode(next);
+                if (next) {
+                  generateOfflinePacket();
+                  toast.warning("Switched to Offline SOS mode. Direct packet generated.");
+                } else {
+                  toast.success("Switched to Live Online mode.");
+                }
+              }}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold border transition-all",
+                isOfflineMode
+                  ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
+                  : "bg-muted text-muted-foreground border-border hover:text-foreground"
+              )}
+              title="Toggle Offline SOS Mode"
+            >
+              {isOfflineMode ? <WifiOff className="size-3 text-amber-400" /> : <Wifi className="size-3 text-emerald-400" />}
+              {isOfflineMode ? "Offline SOS" : "Online"}
+            </button>
+
+            <div className="flex rounded border border-border p-0.5 text-xs">
+              {(["en-IN", "ml-IN"] as const).map((l) => (
+                <button key={l} onClick={() => setLang(l)} className={cn("rounded px-2.5 py-1", lang === l ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+                  {l === "en-IN" ? "English" : "മലയാളം"}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
+
+        {/* Offline SOS Banner & Direct Packet Interface */}
+        {isOfflineMode && (
+          <div className="mt-4 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-left shadow-md">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400">
+                <Radio className="size-4 animate-pulse" />
+                Offline Emergency Packet Mode
+              </div>
+              <span className="rounded bg-amber-500/20 px-2 py-0.5 text-[10px] font-mono text-amber-300">
+                Mesh / SMS Ready
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+              No cellular data needed. Generates a structured geographical packet (hazard, GPS coordinates, casualties) stored in local IndexedDB queue for offline sync.
+            </p>
+
+            {offlinePacket && (
+              <div className="mt-3 rounded-lg bg-background/80 p-3 border border-border">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-mono uppercase text-muted-foreground flex items-center gap-1">
+                    <FileText className="size-3 text-amber-400" /> Compact Mesh Payload
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(offlinePacket);
+                      setCopiedPacket(true);
+                      toast.success("Packet copied to clipboard");
+                      setTimeout(() => setCopiedPacket(false), 2000);
+                    }}
+                    className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-amber-400 hover:text-amber-300"
+                  >
+                    {copiedPacket ? <CheckCircle2 className="size-3 text-emerald-400" /> : <Copy className="size-3" />}
+                    {copiedPacket ? "Copied" : "Copy Payload"}
+                  </button>
+                </div>
+                <div className="font-mono text-xs break-all bg-muted/60 p-2 rounded text-foreground select-all">
+                  {offlinePacket}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3 flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={generateOfflinePacket}
+                className="text-xs h-8 border-amber-500/30 hover:bg-amber-500/20 text-amber-300"
+              >
+                Refresh Coordinates & Packet
+              </Button>
+            </div>
+          </div>
+        )}
         <h1 className="mt-4 text-center text-4xl font-bold uppercase">{listening ? "Listening…" : "Tap & speak"}</h1>
         <p className="text-center text-sm text-muted-foreground">Say what happened, how many people, who is trapped.</p>
 

@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Rescue Console</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Design Token System */
+:root {
+  /* Layout: High-contrast tactical console for wet glove operation */
+
+  /* Colors - Emergency Response Palette */
+  --ground: #0A0E14;
+  --surface: #151B26;
+  --border: #2A3441;
+  --text: #E8EDF4;
+  --text-dim: #8B95A5;
+  --accent: #FF6B35;
+  --accent-dim: #FF8B5F;
+  --success: #00D084;
+  --warning: #FFB800;
+  --critical: #FF3B30;
+  --online: #34C759;
+  --offline: #8E8E93;
+
+  /* Typography */
+  --font-display: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* Spacing - Touch-optimized (48px minimum) */
+  --touch-min: 48px;
+  --gutter: max(16px, env(safe-area-inset-left, 0px));
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --ground: #F5F5F7;
+    --surface: #FFFFFF;
+    --border: #D1D1D6;
+    --text: #1D1D1F;
+    --text-dim: #6E6E73;
+    --accent: #FF6B35;
+    --accent-dim: #FF8B5F;
+    --success: #00D084;
+    --warning: #FFB800;
+    --critical: #FF3B30;
+    --online: #34C759;
+    --offline: #8E8E93;
+    color-scheme: light;
+  }
+}
+
+:root[data-theme="light"] {
+  --ground: #F5F5F7;
+  --surface: #FFFFFF;
+  --border: #D1D1D6;
+  --text: #1D1D1F;
+  --text-dim: #6E6E73;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--ground);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: var(--gutter);
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header - Always Visible */
+.header {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 100;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 10;
+  background: var(--ground);
+}
+
+.callsign {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+}
+
+.status-indicators {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+
+.online .indicator-dot {
+  background: var(--online);
+}
+
+.offline .indicator-dot {
+  background: var(--offline);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Mission Card - Hero */
+.mission-card {
+  background: linear-gradient(135deg, var(--surface) 0%, #1A2332 100%);
+  border: 3px solid var(--accent);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(255, 107, 53, 0.2);
+}
+
+.mission-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mission-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.mission-location {
+  font-family: var(--font-display);
+  font-size: 14px;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.priority-critical {
+  background: var(--critical);
+  color: white;
+}
+
+.victim-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.stat-box {
+  background: rgba(255, 107, 53, 0.1);
+  border: 1px solid var(--accent-dim);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+}
+
+.stat-number {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--accent);
+  display: block;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+/* Status Toggle - Large Touch Targets */
+.status-section {
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.status-btn {
+  min-height: 72px;
+  background: var(--surface);
+  border: 3px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+}
+
+.status-btn:active {
+  transform: scale(0.97);
+}
+
+.status-btn.active {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+  box-shadow: 0 4px 16px rgba(0, 208, 132, 0.4);
+}
+
+.status-icon {
+  font-size: 24px;
+}
+
+/* Communications Panel */
+.comms-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.comms-card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.ambulance-icon {
+  background: rgba(52, 199, 89, 0.2);
+  color: var(--success);
+}
+
+.hospital-icon {
+  background: rgba(255, 184, 0, 0.2);
+  color: var(--warning);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.card-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.eta-display {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--success);
+  margin: 12px 0;
+}
+
+.resource-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 12px 0;
+  padding: 12px;
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 8px;
+}
+
+.resource-label {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.resource-value {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.low-stock {
+  color: var(--critical);
+}
+
+/* Action Buttons */
+.btn-primary {
+  width: 100%;
+  min-height: var(--touch-min);
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  text-decoration: none;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+  background: var(--accent-dim);
+}
+
+.btn-secondary {
+  width: 100%;
+  min-height: var(--touch-min);
+  background: transparent;
+  color: var(--text);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+  font-family: var(--font-body);
+}
+
+.btn-secondary:active {
+  background: var(--surface);
+}
+
+/* Triage & Hazard Loggers */
+.logger-section {
+  margin-bottom: 20px;
+}
+
+.logger-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.logger-btn {
+  min-height: 64px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+.logger-btn:active {
+  transform: scale(0.97);
+}
+
+.triage-red {
+  border-color: var(--critical);
+  background: rgba(255, 59, 48, 0.1);
+}
+
+.triage-yellow {
+  border-color: var(--warning);
+  background: rgba(255, 184, 0, 0.1);
+}
+
+.triage-green {
+  border-color: var(--success);
+  background: rgba(0, 208, 132, 0.1);
+}
+
+/* Escalation Panel */
+.escalation-panel {
+  background: rgba(255, 59, 48, 0.1);
+  border: 3px solid var(--critical);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.escalation-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--critical);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.escalation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.escalation-btn {
+  min-height: 80px;
+  background: var(--critical);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-body);
+}
+
+.escalation-btn:active {
+  transform: scale(0.98);
+  background: #D32F2F;
+}
+
+.escalation-icon {
+  font-size: 32px;
+}
+
+/* Offline Sync Queue */
+.sync-panel {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 20px;
+}
+
+.sync-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sync-title {
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sync-badge {
+  background: var(--accent);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sync-content {
+  margin-top: 16px;
+  display: none;
+}
+
+.sync-content.open {
+  display: block;
+}
+
+.sync-item {
+  padding: 12px;
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-family: var(--font-display);
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .mission-title {
+    font-size: 20px;
+  }
+
+  .status-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .comms-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .logger-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Utility Classes */
+.hidden {
+  display: none !important;
+}
+
+.mt-16 {
+  margin-top: 16px;
+}
+
+.mb-8 {
+  margin-bottom: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Tactical Header -->
+  <header class="header">
+    <div class="callsign" id="callsign">SDRF-WAYANAD-02</div>
+    <div class="status-indicators">
+      <div class="indicator online" id="network-status">
+        <span class="indicator-dot"></span>
+        <span id="status-text">ONLINE</span>
+      </div>
+      <div class="indicator">
+        <span id="battery-icon">🔋</span>
+        <span id="battery-level">87%</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Active Mission Hero Card -->
+  <section class="mission-card">
+    <div class="mission-header">
+      <div>
+        <h1 class="mission-title" id="mission-title">Flood Extraction - Meppadi Hills</h1>
+        <div class="mission-location">
+          <span>📍</span>
+          <span id="mission-coords">11.5540°N, 76.1320°E</span>
+          <a href="#" class="btn-link" id="maps-link" style="color: var(--accent); margin-left: 8px;">Open Map ↗</a>
+        </div>
+      </div>
+      <span class="priority-badge priority-critical">
+        <span>⚠️</span>
+        CRITICAL
+      </span>
+    </div>
+
+    <div class="victim-stats">
+      <div class="stat-box">
+        <span class="stat-number" id="total-victims">5</span>
+        <span class="stat-label">Total Affected</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-number" id="trapped-count">2</span>
+        <span class="stat-label">Trapped</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-number" id="injured-count">1</span>
+        <span class="stat-label">Injured</span>
+      </div>
+    </div>
+
+    <button class="btn-secondary mt-16" id="view-transcript">
+      🎤 View Citizen Voice Note & Photo
+    </button>
+  </section>
+
+  <!-- 4-Stage Status Toggle -->
+  <section class="status-section">
+    <h2 class="section-title">
+      <span>🚁</span>
+      Mission Status
+    </h2>
+    <div class="status-grid">
+      <button class="status-btn" id="status-enroute" data-status="EN_ROUTE">
+        <span class="status-icon">🚗</span>
+        <span>En Route</span>
+      </button>
+      <button class="status-btn" id="status-onscene" data-status="ON_SCENE">
+        <span class="status-icon">📍</span>
+        <span>On Scene</span>
+      </button>
+      <button class="status-btn" id="status-extracting" data-status="EXTRACTION_ACTIVE">
+        <span class="status-icon">🆘</span>
+        <span>Extracting</span>
+      </button>
+      <button class="status-btn" id="status-rescued" data-status="TARGET_RESCUED">
+        <span class="status-icon">✅</span>
+        <span>Target Rescued</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Inter-Agency Communications -->
+  <section class="comms-panel">
+    <!-- Ambulance Card -->
+    <div class="comms-card">
+      <div class="card-header">
+        <div class="card-icon ambulance-icon">🚑</div>
+        <div>
+          <div class="card-title">Approaching Ambulance</div>
+          <div class="card-subtitle">ALS-114 · Driver: Rajan Kumar</div>
+        </div>
+      </div>
+
+      <div class="eta-display" id="ambulance-eta">8 mins away</div>
+
+      <a href="tel:+919447123456" class="btn-primary">
+        <span>📞</span>
+        Call Ambulance Driver
+      </a>
+
+      <button class="btn-secondary">
+        📍 Set Rendezvous Point
+      </button>
+    </div>
+
+    <!-- Hospital Card -->
+    <div class="comms-card">
+      <div class="card-header">
+        <div class="card-icon hospital-icon">🏥</div>
+        <div>
+          <div class="card-title">Nearest Hospital</div>
+          <div class="card-subtitle">Wayanad District Hospital · 6.4 km</div>
+        </div>
+      </div>
+
+      <div class="resource-info">
+        <span class="resource-label">ICU Beds Available</span>
+        <span class="resource-value low-stock">2</span>
+      </div>
+
+      <div class="resource-info">
+        <span class="resource-label">O-Neg Blood Stock</span>
+        <span class="resource-value">4 units</span>
+      </div>
+
+      <a href="tel:+914936223456" class="btn-primary">
+        <span>📞</span>
+        Call ER Desk
+      </a>
+
+      <button class="btn-secondary" id="reserve-bed">
+        🛏️ Reserve 1 ICU Bed
+      </button>
+    </div>
+  </section>
+
+  <!-- Quick-Tap Casualty Triage -->
+  <section class="logger-section">
+    <h2 class="section-title">
+      <span>🚑</span>
+      Casualty Triage Logger
+    </h2>
+    <div class="logger-grid">
+      <button class="logger-btn triage-red" data-triage="RED">
+        <span style="font-size: 20px;">🔴</span>
+        <span>RED<br>Immediate</span>
+      </button>
+      <button class="logger-btn triage-yellow" data-triage="YELLOW">
+        <span style="font-size: 20px;">🟡</span>
+        <span>YELLOW<br>Urgent</span>
+      </button>
+      <button class="logger-btn triage-green" data-triage="GREEN">
+        <span style="font-size: 20px;">🟢</span>
+        <span>GREEN<br>Ambulatory</span>
+      </button>
+    </div>
+
+    <div class="logger-grid mt-16">
+      <button class="logger-btn" data-injury="CRUSH">
+        💥 Crush Injury
+      </button>
+      <button class="logger-btn" data-injury="HYPOTHERMIA">
+        ❄️ Hypothermia
+      </button>
+      <button class="logger-btn" data-injury="FRACTURE">
+        🦴 Compound Fracture
+      </button>
+      <button class="logger-btn" data-injury="DROWNING">
+        🌊 Near-Drowning
+      </button>
+    </div>
+  </section>
+
+  <!-- Hazard Broadcaster -->
+  <section class="logger-section">
+    <h2 class="section-title">
+      <span>⚠️</span>
+      Field Hazard Reporter
+    </h2>
+    <div class="logger-grid">
+      <button class="logger-btn" data-hazard="POWER_LINE">
+        ⚡ Power Line Down
+      </button>
+      <button class="logger-btn" data-hazard="FLOOD_SURGE">
+        🌊 Flood Current Surge
+      </button>
+      <button class="logger-btn" data-hazard="SLOPE_COLLAPSE">
+        ⛰️ Slope Collapse
+      </button>
+      <button class="logger-btn" data-hazard="BLOCKED_ROAD">
+        🚧 Road Blocked
+      </button>
+    </div>
+  </section>
+
+  <!-- Escalation / Backup Request -->
+  <section class="escalation-panel">
+    <h3 class="escalation-title">
+      <span>🚨</span>
+      Request Immediate Backup
+    </h3>
+    <div class="escalation-grid">
+      <button class="escalation-btn" data-backup="AIR_EVAC">
+        <span class="escalation-icon">🚁</span>
+        <span>Air Evacuation</span>
+      </button>
+      <button class="escalation-btn" data-backup="BOATS">
+        <span class="escalation-icon">🚤</span>
+        <span>Gemini Boats</span>
+      </button>
+      <button class="escalation-btn" data-backup="TRAUMA_MEDIC">
+        <span class="escalation-icon">🩺</span>
+        <span>Trauma Medics</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Offline Sync Queue -->
+  <section class="sync-panel">
+    <div class="sync-header" id="sync-toggle">
+      <div class="sync-title">
+        <span>💾</span>
+        Offline Sync Queue
+      </div>
+      <span class="sync-badge" id="queue-count">3</span>
+    </div>
+    <div class="sync-content" id="sync-content">
+      <div class="sync-item">
+        ⏱️ 14:23 - Status change: ON_SCENE
+      </div>
+      <div class="sync-item">
+        ⏱️ 14:24 - Triage: RED × 1
+      </div>
+      <div class="sync-item">
+        ⏱️ 14:25 - Hazard: POWER_LINE @ 11.5540°N, 76.1320°E
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Field Rescue Console - Production Logic
+
+// Mock Data Store (Replace with IndexedDB)
+const store = {
+  currentStatus: 'ASSIGNED',
+  triageLog: [],
+  hazardLog: [],
+  offlineQueue: [
+    { time: '14:23', action: 'Status change: ON_SCENE' },
+    { time: '14:24', action: 'Triage: RED × 1' },
+    { time: '14:25', action: 'Hazard: POWER_LINE @ 11.5540°N, 76.1320°E' }
+  ],
+  networkOnline: true
+};
+
+// Utility - Show Toast Notification
+function showToast(message, type = 'success') {
+  if (navigator.vibrate) {
+    navigator.vibrate(50);
+  }
+
+  const toast = document.createElement('div');
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: ${type === 'success' ? 'var(--success)' : 'var(--critical)'};
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    z-index: 1000;
+    font-weight: 600;
+  `;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.remove();
+  }, 3000);
+}
+
+// Mission Status Toggle
+const statusButtons = document.querySelectorAll('.status-btn');
+statusButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const status = btn.dataset.status;
+
+    statusButtons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    store.currentStatus = status;
+    queueOfflineAction(`Status: ${status}`);
+
+    showToast(`Mission status updated: ${status.replace(/_/g, ' ')}`);
+  });
+});
+
+// Triage Logging
+const triageButtons = document.querySelectorAll('[data-triage]');
+triageButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const level = btn.dataset.triage;
+    store.triageLog.push({ level, timestamp: new Date() });
+    queueOfflineAction(`Triage: ${level} × 1`);
+
+    showToast(`Triage logged: ${level}`);
+
+    if (level === 'RED') {
+      setTimeout(() => {
+        showToast('Auto-reserving ICU bed for RED triage victim', 'success');
+      }, 500);
+    }
+  });
+});
+
+// Injury Logging
+const injuryButtons = document.querySelectorAll('[data-injury]');
+injuryButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const injury = btn.dataset.injury;
+    queueOfflineAction(`Injury: ${injury}`);
+    showToast(`Injury logged: ${injury.replace(/_/g, ' ')}`);
+  });
+});
+
+// Hazard Reporting
+const hazardButtons = document.querySelectorAll('[data-hazard]');
+hazardButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const hazard = btn.dataset.hazard;
+    const coords = document.getElementById('mission-coords').textContent;
+
+    store.hazardLog.push({ hazard, coords, timestamp: new Date() });
+    queueOfflineAction(`Hazard: ${hazard} @ ${coords}`);
+
+    showToast(`Hazard broadcasted: ${hazard.replace(/_/g, ' ')}`);
+  });
+});
+
+// Backup Escalation
+const backupButtons = document.querySelectorAll('[data-backup]');
+backupButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const backupType = btn.dataset.backup;
+    queueOfflineAction(`BACKUP REQUEST: ${backupType}`);
+    showToast(`Backup requested: ${backupType.replace(/_/g, ' ')}`, 'critical');
+  });
+});
+
+// Bed Reservation
+document.getElementById('reserve-bed').addEventListener('click', () => {
+  queueOfflineAction('ICU Bed Reserved @ Wayanad District Hospital');
+  showToast('ICU bed reserved successfully');
+});
+
+// Maps Link
+document.getElementById('maps-link').addEventListener('click', (e) => {
+  e.preventDefault();
+  const coords = document.getElementById('mission-coords').textContent.split(',');
+  const lat = parseFloat(coords[0]);
+  const lng = parseFloat(coords[1]);
+  window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+});
+
+// Transcript Modal
+document.getElementById('view-transcript').addEventListener('click', () => {
+  showToast('Voice transcript: "12 people trapped, rising water, elderly cardiac patient needs immediate evacuation"');
+});
+
+// Offline Queue Management
+function queueOfflineAction(action) {
+  const time = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+  store.offlineQueue.push({ time, action });
+
+  updateQueueDisplay();
+
+  if (store.networkOnline) {
+    setTimeout(syncToBackend, 2000);
+  }
+}
+
+function updateQueueDisplay() {
+  const queueCount = document.getElementById('queue-count');
+  const syncContent = document.getElementById('sync-content');
+
+  queueCount.textContent = store.offlineQueue.length;
+
+  syncContent.innerHTML = store.offlineQueue
+    .slice(-5)
+    .map(item => `<div class="sync-item">⏱️ ${item.time} - ${item.action}</div>`)
+    .join('');
+}
+
+function syncToBackend() {
+  if (!store.networkOnline || store.offlineQueue.length === 0) return;
+
+  console.log('Syncing to backend:', store.offlineQueue);
+
+  store.offlineQueue = [];
+  updateQueueDisplay();
+
+  showToast('Data synced to control room');
+}
+
+// Sync Toggle
+document.getElementById('sync-toggle').addEventListener('click', () => {
+  const content = document.getElementById('sync-content');
+  content.classList.toggle('open');
+});
+
+// Network Status Monitoring
+function updateNetworkStatus() {
+  const online = navigator.onLine;
+  store.networkOnline = online;
+
+  const statusIndicator = document.getElementById('network-status');
+  const statusText = document.getElementById('status-text');
+
+  if (online) {
+    statusIndicator.classList.remove('offline');
+    statusIndicator.classList.add('online');
+    statusText.textContent = 'ONLINE';
+  } else {
+    statusIndicator.classList.remove('online');
+    statusIndicator.classList.add('offline');
+    statusText.textContent = 'OFFLINE';
+  }
+}
+
+window.addEventListener('online', () => {
+  updateNetworkStatus();
+  showToast('Connection restored - syncing data');
+  syncToBackend();
+});
+
+window.addEventListener('offline', () => {
+  updateNetworkStatus();
+  showToast('Offline mode - actions will be queued', 'warning');
+});
+
+// Battery Status
+if ('getBattery' in navigator) {
+  navigator.getBattery().then(battery => {
+    const updateBattery = () => {
+      const level = Math.round(battery.level * 100);
+      document.getElementById('battery-level').textContent = level + '%';
+
+      if (level < 20) {
+        document.getElementById('battery-icon').textContent = '🪫';
+      }
+    };
+
+    battery.addEventListener('levelchange', updateBattery);
+    updateBattery();
+  });
+}
+
+// Initialize
+updateNetworkStatus();
+updateQueueDisplay();
+
+// Mock ETA Countdown
+let etaMinutes = 8;
+setInterval(() => {
+  if (etaMinutes > 0) {
+    etaMinutes--;
+    document.getElementById('ambulance-eta').textContent =
+      etaMinutes > 0 ? `${etaMinutes} mins away` : 'Arriving now!';
+  }
+}, 60000);
+
+console.log('Field Rescue Console v1.0 - RESQ Kerala');
+console.log('Unit:', document.getElementById('callsign').textContent);
+console.log('Network:', store.networkOnline ? 'ONLINE' : 'OFFLINE (CACHED)');
+</script>
+
+</body>
+</html>

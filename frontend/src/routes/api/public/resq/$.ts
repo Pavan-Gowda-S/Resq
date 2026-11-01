@@ -2,13 +2,32 @@ import { createFileRoute } from "@tanstack/react-router";
 
 // Forwards browser requests to the RESQ FastAPI backend so the app is not
 // blocked by the backend's CORS allow-list. Only the fixed backend host is reachable.
-const BASE = "https://tied-politics-supervision-blink.trycloudflare.com";
+const BASE = "https://jason-promote-wisconsin-simultaneously.trycloudflare.com";
+
+// Lightweight proxy-level cache to protect the Cloudflare tunnel from rate limiting / resource exhaustion
+const proxyGetCache = new Map<string, { time: number; status: number; text: string; contentType: string }>();
+const CACHE_TTL_MS = 3500; // 3.5s cache for read queries across open tabs
 
 async function forward(request: Request, splat: string) {
   const url = new URL(request.url);
   const path = splat.replace(/^\/+/, "");
   if (path.includes("..")) return new Response("Bad path", { status: 400 });
   const target = `${BASE}/${path}${url.search}`;
+
+  // Serve from cache for repeated GETs to prevent Cloudflare tunnel rate limiting
+  if (request.method === "GET") {
+    const cached = proxyGetCache.get(target);
+    if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
+      return new Response(cached.text, {
+        status: cached.status,
+        headers: {
+          "content-type": cached.contentType,
+          "x-resq-cache": "HIT",
+        },
+      });
+    }
+  }
+
   const headers = new Headers();
   const auth = request.headers.get("authorization");
   if (auth) headers.set("authorization", auth);
@@ -18,9 +37,19 @@ async function forward(request: Request, splat: string) {
     const init: RequestInit = { method: request.method, headers };
     if (!["GET", "HEAD"].includes(request.method)) init.body = await request.text();
     const res = await fetch(target, init);
-    return new Response(await res.text(), {
+    const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "application/json";
+
+    if (request.method === "GET" && res.status === 200) {
+      proxyGetCache.set(target, { time: Date.now(), status: res.status, text, contentType });
+    } else if (["POST", "PUT", "PATCH", "DELETE"].includes(request.method)) {
+      // Invalidate read cache immediately on state changes
+      proxyGetCache.clear();
+    }
+
+    return new Response(text, {
       status: res.status,
-      headers: { "content-type": res.headers.get("content-type") ?? "application/json" },
+      headers: { "content-type": contentType },
     });
   } catch {
     return Response.json({ detail: "Backend unreachable" }, { status: 502 });

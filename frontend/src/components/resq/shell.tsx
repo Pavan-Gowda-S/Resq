@@ -12,11 +12,14 @@ const PORTALS = [
   { to: "/admin", label: "Admin", icon: ShieldCheck },
 ] as const;
 
-export function useBackendHealth(intervalMs = 20000) {
+export function useBackendHealth(intervalMs = 60000) {
   const [state, setState] = useState<{ ok: boolean | null; ms: number }>({ ok: null, ms: 0 });
   useEffect(() => {
     let alive = true;
-    const run = () => checkHealth().then((r) => alive && setState(r));
+    const run = () => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      checkHealth().then((r) => alive && setState(r));
+    };
     run();
     const id = setInterval(run, intervalMs);
     return () => { alive = false; clearInterval(id); };

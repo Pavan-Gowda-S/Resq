@@ -38,6 +38,8 @@ from backend.app.services.status_service import (
     record_status_change,
     update_incident_status,
 )
+from backend.app.services.task_dispatch_agent import dispatch_task
+from backend.app.services.hospital_routing_agent import route_to_hospital
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.types import Geography
 from sqlalchemy import func
@@ -533,6 +535,22 @@ async def create_incident_tasks(
         created_tasks.append(task)
 
     await db.commit()
+
+    # === AI Agent Auto-Dispatch ===
+    incident_loc = incident.location  # PostGIS WKB point
+    # Parse lat/lng from PostGIS WKB using shapely
+    try:
+        from shapely import wkb as shapely_wkb
+        point = shapely_wkb.loads(bytes(incident_loc.data), hex=False)
+        inc_lat, inc_lng = point.y, point.x
+    except Exception:
+        inc_lat, inc_lng = None, None
+
+    for task in created_tasks:
+        if task.task_type in ["RESCUE_EXTRACTION", "SEARCH_AND_RESCUE", "AMBULANCE_TRANSPORT", "FIREFIGHTING"]:
+            await dispatch_task(task, db)
+        elif task.task_type == "HOSPITAL_ADMISSION" and inc_lat and inc_lng:
+            await route_to_hospital(task, db, inc_lat, inc_lng)
 
     # Build response
     task_responses = [
