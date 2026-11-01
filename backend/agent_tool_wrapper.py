@@ -53,6 +53,58 @@ def check_offline_bridge_health(
         return {"status": "unreachable", "error": str(e)}
 
 
+def query_offline_database_json(
+    bridge_url: Optional[str] = None,
+    api_key: Optional[str] = None,
+    limit: int = 20,
+    since: Optional[str] = None,
+    hazard_type: Optional[str] = None,
+    urgency: Optional[str] = None,
+    timeout: float = 10.0
+) -> List[Dict[str, Any]]:
+    """
+    Queries the offline field SQLite database and returns the raw parsed SMS records as a JSON list.
+
+    Returns:
+        List[Dict[str, Any]]: List of dictionary records parsed from offline edge SMS.
+    """
+    url = (bridge_url or RESQ_OFFLINE_BRIDGE_URL).rstrip("/")
+    token = api_key or RESQ_MAS_API_KEY
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    payload: Dict[str, Any] = {"limit": limit}
+    if since:
+        payload["since"] = since
+    if hazard_type:
+        payload["hazard_type"] = hazard_type
+    if urgency:
+        payload["urgency"] = urgency
+
+    try:
+        resp = requests.post(f"{url}/api/query-offline", json=payload, headers=headers, timeout=timeout)
+        if resp.status_code in (404, 405):
+            resp = requests.get(f"{url}/api/query-offline", params=payload, headers=headers, timeout=timeout)
+
+        if resp.status_code != 200:
+            logger.error("Error from offline bridge (%s): %s", resp.status_code, resp.text)
+            return []
+
+        data = resp.json()
+        if isinstance(data, list):
+            return data
+        elif isinstance(data, dict):
+            return data.get("records", data.get("results", data.get("data", [])))
+        return []
+    except requests.exceptions.RequestException as e:
+        logger.error("Failed to query offline bridge: %s", e)
+        return []
+
+
 def query_offline_database(
     bridge_url: Optional[str] = None,
     api_key: Optional[str] = None,

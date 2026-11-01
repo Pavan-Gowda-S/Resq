@@ -4,6 +4,7 @@ Expose agent_tool_wrapper for agents subpackage.
 from backend.agent_tool_wrapper import (
     check_offline_bridge_health,
     query_offline_database,
+    query_offline_database_json,
     OFFLINE_DB_TOOL_SCHEMA,
     offline_database_tool,
     RESQ_OFFLINE_BRIDGE_URL,
@@ -13,6 +14,7 @@ from backend.agent_tool_wrapper import (
 __all__ = [
     "check_offline_bridge_health",
     "query_offline_database",
+    "query_offline_database_json",
     "OFFLINE_DB_TOOL_SCHEMA",
     "offline_database_tool",
     "RESQ_OFFLINE_BRIDGE_URL",
