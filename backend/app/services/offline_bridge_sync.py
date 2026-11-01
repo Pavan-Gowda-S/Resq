@@ -11,13 +11,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from geoalchemy2.elements import WKTElement
 
-from app.models.incident import Incident
-from app.models.response_task import ResponseTask, TaskStatus
-from app.models.tracking_token import TrackingToken
-from app.services.incident_service import generate_unique_incident_number
-from app.services.status_service import record_status_change
-from app.services.task_dispatch_agent import dispatch_task
-from app.services.hospital_routing_agent import route_to_hospital
+from backend.app.models.incident import Incident
+from backend.app.models.response_task import ResponseTask
+from backend.app.models.tracking_token import TrackingToken
+from backend.app.services.incident_service import generate_unique_incident_number
+from backend.app.services.status_service import record_status_change
+from backend.app.services.task_dispatch_agent import dispatch_task
+from backend.app.services.hospital_routing_agent import route_to_hospital
+from shared.constants import TaskStatus
 
 logger = logging.getLogger(__name__)
 
