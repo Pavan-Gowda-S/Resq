@@ -1,5 +1,5 @@
 // Client for the RESQ backend (proxied through /api/public/resq to avoid CORS).
-export const API_DISPLAY_BASE = "https://disposition-thorough-contracts-cadillac.trycloudflare.com/api/v1";
+export const API_DISPLAY_BASE = "https://curly-space-guide-969xrw5vvppw3xvjr-8000.app.github.dev/api/v1";
 const PROXY = "/api/public/resq";
 
 const TOKEN_KEY = "resq.token";
