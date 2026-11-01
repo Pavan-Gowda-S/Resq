@@ -1,5 +1,5 @@
 // Client for the RESQ backend (proxied through /api/public/resq to avoid CORS).
-export const API_DISPLAY_BASE = "https://committees-receptor-advertisers-manga.trycloudflare.com/api/v1";
+export const API_DISPLAY_BASE = "https://bingo-packs-variation-native.trycloudflare.com/api/v1";
 const PROXY = "/api/public/resq";
 
 const TOKEN_KEY = "resq.token";
