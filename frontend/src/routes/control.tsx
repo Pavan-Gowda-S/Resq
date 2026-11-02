@@ -75,7 +75,9 @@ function ControlRoom() {
     const unsub = subscribeToCrisisUpdates((crisis) => {
       if (crisis) {
         setLiveIncidents((prev) => {
-          if (prev.some((x) => x.incident_number === crisis.incidentNumber)) return prev;
+          if (prev.some((x) => x.incident_number === crisis.incidentNumber)) {
+            return prev.map((x) => (x.incident_number === crisis.incidentNumber ? { ...x, status: crisis.status } : x));
+          }
           const newInc: Incident = {
             id: crisis.incidentId,
             incident_number: crisis.incidentNumber,
@@ -93,25 +95,29 @@ function ControlRoom() {
           return [newInc, ...prev];
         });
 
-        setFeed((prev) => [
-          {
-            id: `crisis-${Date.now()}`,
-            agent: "TaskDispatchAgent",
-            text: `Assigned ${crisis.incidentNumber} to ${crisis.assignedRescue.unitName} (PostGIS nearest-neighbor: ${crisis.assignedRescue.distanceKm} km)`,
-            time: new Date().toLocaleTimeString(),
-            confidence: 96,
-            latency: 184,
-          },
-          {
-            id: `crisis-hosp-${Date.now()}`,
-            agent: "HospitalRoutingAgent",
-            text: `Atomic ICU Bed reserved at ${crisis.assignedHospital.name} for ${crisis.incidentNumber}`,
-            time: new Date().toLocaleTimeString(),
-            confidence: 95,
-            latency: 142,
-          },
-          ...prev,
-        ]);
+        setFeed((prev) => {
+          const dispatchKey = `${crisis.incidentNumber}-dispatch`;
+          if (prev.some((x) => x.id === dispatchKey)) return prev;
+          return [
+            {
+              id: dispatchKey,
+              agent: "TaskDispatchAgent",
+              text: `Assigned ${crisis.incidentNumber} to ${crisis.assignedRescue.unitName} (PostGIS nearest-neighbor: ${crisis.assignedRescue.distanceKm} km)`,
+              time: new Date().toLocaleTimeString(),
+              confidence: 96,
+              latency: 184,
+            },
+            {
+              id: `${crisis.incidentNumber}-hospital`,
+              agent: "HospitalRoutingAgent",
+              text: `Atomic ICU Bed reserved at ${crisis.assignedHospital.name} for ${crisis.incidentNumber}`,
+              time: new Date().toLocaleTimeString(),
+              confidence: 95,
+              latency: 142,
+            },
+            ...prev,
+          ];
+        });
 
         setPoints((prev) => {
           if (prev.some((p) => p.label === crisis.incidentNumber)) return prev;
