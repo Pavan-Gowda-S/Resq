@@ -20,6 +20,15 @@ load_dotenv(PROJECT_ROOT / ".env")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://resq_user:resq_password@localhost:5432/resq_db")
 DATABASE_SYNC_URL = os.getenv("DATABASE_SYNC_URL", "postgresql://resq_user:resq_password@localhost:5432/resq_db")
 
+# Adapt Render / Cloud PostgreSQL URL format for asyncpg driver
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+asyncpg://"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+if DATABASE_SYNC_URL.startswith("postgres://"):
+    DATABASE_SYNC_URL = DATABASE_SYNC_URL.replace("postgres://", "postgresql://", 1)
+
 # Async engine for FastAPI operations
 if os.getenv("TESTING") == "1":
     async_engine = create_async_engine(

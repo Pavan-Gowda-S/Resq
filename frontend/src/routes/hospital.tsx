@@ -44,8 +44,12 @@ export const Route = createFileRoute("/hospital")({
     <StaffGate
       portalName="Hospital Intake & Triage Portal"
       portalDescription="Real-time clinical triage, ICU bed availability, and medevac admissions."
-      roleLabel="Triage Specialist / Medical Superintendent"
+      roleLabel="Triage Specialist"
       defaultEmail="doctor@wayanad.resq.gov.in"
+      roles={[
+        { value: "TRIAGE_DOCTOR", label: "Triage Specialist" },
+        { value: "ORG_ADMIN", label: "Medical Superintendent" },
+      ]}
     >
       {(user, signOut) => (
         <HospitalConsole name={user.full_name} role={user.role} onSignOut={signOut} />

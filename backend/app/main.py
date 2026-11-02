@@ -26,6 +26,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[-] Failed to enable PostGIS extension: {e}")
 
+    # Bootstrap schema & core seed records on startup
+    try:
+        from backend.app.database.bootstrap import bootstrap_database
+        await bootstrap_database()
+    except Exception as e:
+        print(f"[-] Database bootstrap failed: {e}")
+
     if os.getenv("TESTING") != "1":
         try:
             await connect_redis()
