@@ -41,6 +41,6 @@ Each team member owns their dedicated portal file in `src/routes/`. You can work
 ## Live Backend API Connection
 
 The frontend automatically proxies requests to the live Cloudflare backend tunnel:
-`https://curly-space-guide-969xrw5vvppw3xvjr-8000.app.github.dev/api/v1`
+`https://resq-backend-v89u.onrender.com/api/v1`
 
 Configuration file: `src/routes/api/public/resq/$.ts`

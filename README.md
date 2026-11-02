@@ -3,6 +3,7 @@
 <div align="center">
 
 [![Live Production Deployment](https://img.shields.io/badge/🚀%20Live%20Production-resq--inky.vercel.app-blueviolet?style=for-the-badge&logo=vercel)](https://resq-inky.vercel.app/)
+[![Production Backend API](https://img.shields.io/badge/⚡%20Backend%20API-resq--backend--v89u.onrender.com-009688?style=for-the-badge&logo=render)](https://resq-backend-v89u.onrender.com/docs)
 [![Backend Architecture](https://img.shields.io/badge/FastAPI-0.110+-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Spatial Database](https://img.shields.io/badge/PostgreSQL%2016-PostGIS%20Spatial-336791?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Multi-Agent System](https://img.shields.io/badge/Multi--Agent-LangGraph%20%2B%20Gemini-FF6F00?style=for-the-badge&logo=google&logoColor=white)](https://github.com/langchain-ai/langgraph)

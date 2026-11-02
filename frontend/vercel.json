@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/public/resq/(.*)",
-      "destination": "https://curly-space-guide-969xrw5vvppw3xvjr-8000.app.github.dev/$1"
+      "destination": "https://resq-backend-v89u.onrender.com/$1"
     }
   ]
 }
