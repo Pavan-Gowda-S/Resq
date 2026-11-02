@@ -29,3 +29,10 @@ services:
           name: resq-postgis
           property: connectionString
     healthCheckPath: /health
+
+databases:
+  - name: resq-postgis
+    databaseName: resq_db
+    user: resq_user
+    plan: free
+    region: singapore
